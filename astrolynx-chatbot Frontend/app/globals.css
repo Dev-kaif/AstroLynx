@@ -92,3 +92,81 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom Scrollbar Styles */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px; /* Width for vertical scrollbar */
+  /* For horizontal scrollbar if needed */
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent; /* Make track fully transparent to blend with background */
+  border-radius: 10px; /* Keep rounded corners for the track */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 120, 120, 0.5); /* Slightly lighter grey, more transparent */
+  border-radius: 10px; /* Ensure rounded ends */
+  border: 2px solid transparent; /* Make border transparent to avoid visible lines */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(150, 150, 150, 0.7); /* Lighter on hover for subtle feedback */
+}
+
+/* Basic Markdown Styling within chat bubbles */
+/* These styles are applied to the generated HTML from markdown */
+.markdown-content p {
+  margin-bottom: 0.5em; /* Add space between paragraphs */
+}
+.markdown-content strong {
+  font-weight: bold;
+}
+.markdown-content em {
+  font-style: italic;
+}
+.markdown-content ul, .markdown-content ol {
+  margin-left: 1.25em; /* Indent lists */
+  /* Default disc for unordered lists, decimal for ordered lists */
+}
+.markdown-content li {
+  margin-bottom: 0.25em;
+}
+.markdown-content a {
+  color: #60a5fa; /* Tailwind blue-400, adjust to your theme's link color */
+  text-decoration: underline;
+}
+/* Add more styles for other markdown elements as needed: */
+.markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+.markdown-content h1 { font-size: 1.5em; }
+.markdown-content h2 { font-size: 1.3em; }
+.markdown-content h3 { font-size: 1.1em; }
+
+.markdown-content pre {
+  background-color: rgba(0, 0, 0, 0.3); /* Dark background for code blocks */
+  padding: 0.75em;
+  border-radius: 0.5em;
+  overflow-x: auto; /* Enable horizontal scrolling for long lines */
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 0.85em;
+}
+
+.markdown-content code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 0.2em 0.4em;
+  border-radius: 0.3em;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #60a5fa; /* Blue border for blockquotes */
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #a0a0a0; /* Lighter text for blockquotes */
+}

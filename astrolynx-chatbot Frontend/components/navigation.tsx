@@ -9,13 +9,9 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: Home },
-  { name: "Chat", href: "/chat", icon: MessageSquare },
+  { name: "Chat", href: "/", icon: MessageSquare },
   { name: "Data Explorer", href: "/data", icon: Database },
   { name: "Map View", href: "/map", icon: Map },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Settings", href: "/settings", icon: Settings },
-  { name: "Profile", href: "/profile", icon: User },
 ]
 
 export function Navigation() {

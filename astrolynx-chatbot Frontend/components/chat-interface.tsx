@@ -1,74 +1,326 @@
-"use client"
+"use client";
 
-import { useState, useRef, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Send, Mic, User, Bot, ExternalLink } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import type { Message } from "@/lib/types"
+import { useState, useRef, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Send,
+  Mic,
+  User,
+  Bot,
+  ExternalLink,
+  Loader2,
+  PlusCircle,
+  StopCircle,
+} from "lucide-react";
+
+// Import ReactMarkdown and remarkGfm
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { Input } from "./ui/input";
+
+// User's provided global type declarations
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    SpeechRecognitionEvent: any;
+  }
+}
+
+// Define the Message type to match backend's structured output
+type Message = {
+  id: string;
+  content: string;
+  role: "user" | "assistant";
+  timestamp: string;
+  sources?: string[];
+  isStreaming?: boolean;
+};
+
+const BASE_URL = "http://localhost:5000"; // Your backend URL
+
+// User's provided explicit global API declarations
+declare const SpeechRecognition: typeof window.SpeechRecognition;
+declare const SpeechRecognitionEvent: typeof window.SpeechRecognitionEvent;
 
 export function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      content:
-        "Hello! I'm AstroLynx, your AI assistant for satellite data navigation. I can help you explore ISRO's satellite missions, retrieve data from MOSDAC, and answer questions about space technology. How can I assist you today?",
-      role: "assistant",
-      timestamp: new Date(),
-      sources: ["MOSDAC Portal", "ISRO Database"],
-    },
-  ])
-  const [inputValue, setInputValue] = useState("")
-  const [isTyping, setIsTyping] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [isListening, setIsListening] = useState(false);
+  const [recognitionError, setRecognitionError] = useState<string | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // User's provided type for recognitionRef
+  const recognitionRef = useRef<any>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const fetchChatHistory = useCallback(async (currentSessionId: string) => {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/api/session/history/${currentSessionId}`
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log("Response from /api/session/history:", data);
+
+      if (
+        data.history &&
+        Array.isArray(data.history) &&
+        data.history.length > 0
+      ) {
+        const validHistory: Message[] = data.history.filter(
+          (msg: any) =>
+            msg &&
+            typeof msg.id === "string" &&
+            typeof msg.content === "string" &&
+            (msg.role === "user" || msg.role === "assistant") &&
+            typeof msg.timestamp === "string"
+        );
+        setMessages(validHistory);
+      } else {
+        // Removed the initial welcome message here
+        setMessages([]); // Ensure messages are empty if no history
+      }
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: "error-history",
+          content:
+            "Failed to load chat history. You can still send new messages.",
+          role: "assistant",
+          timestamp: new Date().toISOString(),
+          sources: [],
+        },
+      ]);
+    }
+  }, []);
+
+  const establishSession = useCallback(async () => {
+    setIsLoadingSession(true);
+    let currentSessionId = localStorage.getItem("chatSessionId");
+
+    if (currentSessionId) {
+      console.log(
+        "Found existing session ID in localStorage:",
+        currentSessionId
+      );
+      setSessionId(currentSessionId);
+      await fetchChatHistory(currentSessionId);
+    } else {
+      // Removed the initial welcome message here
+      setMessages([]); // Start with an empty message array
+      console.log(
+        "No session ID found. Requesting new session from backend..."
+      );
+
+      try {
+        const response = await fetch(`${BASE_URL}/api/session`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log("Response from /api/session (new session):", data);
+        currentSessionId = data.sessionId;
+        localStorage.setItem("chatSessionId", currentSessionId!);
+        setSessionId(currentSessionId);
+        console.log("New session ID established and saved:", currentSessionId);
+      } catch (error) {
+        console.error("Error establishing new session:", error);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: "error-session-init",
+            content:
+              "Failed to start a new chat session. Please try refreshing the page.",
+            role: "assistant",
+            timestamp: new Date().toISOString(),
+            sources: [],
+          },
+        ]);
+      }
+    }
+    setIsLoadingSession(false);
+  }, [fetchChatHistory]);
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    establishSession();
+  }, [establishSession]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // --- Speech-to-Text (STT) Logic ---
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false; // Listen for a single utterance
+      recognition.interimResults = true; // Get interim results as the user speaks
+      recognition.lang = "en-US"; // Set language
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setRecognitionError(null);
+        console.log("Speech recognition started");
+      };
+
+      recognition.onresult = (event: any) => { // Using 'any' as per user's request
+        const interimTranscript = Array.from(event.results)
+          .map((result: any) => result[0].transcript) // Using 'any' as per user's request
+          .join("");
+        setInputValue(interimTranscript);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        console.log("Speech recognition ended");
+        setInputValue((currentInputValue) => {
+          if (currentInputValue.trim()) {
+            handleSendMessage();
+          }
+          return currentInputValue;
+        });
+      };
+
+      recognition.onerror = (event: any) => { // Using 'any' as per user's request
+        setIsListening(false);
+        console.error("Speech recognition error:", event.error);
+        let errorMessage = "Speech recognition error.";
+        if (event.error === "not-allowed") {
+          errorMessage =
+            "Microphone permission denied. Please allow access in your browser settings.";
+        } else if (event.error === "no-speech") {
+          errorMessage = "No speech detected. Please try again.";
+        } else if (event.error === "audio-capture") {
+          errorMessage = "No microphone found or audio capture failed.";
+        }
+        setRecognitionError(errorMessage);
+        console.error(errorMessage);
+      };
+
+      recognitionRef.current = recognition;
+
+      return () => {
+        if (recognitionRef.current) {
+          recognitionRef.current.stop();
+        }
+      };
+    } else {
+      setRecognitionError("Speech recognition not supported in this browser.");
+      console.warn("SpeechRecognition API not supported in this browser.");
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (recognitionRef.current) {
+      if (isListening) {
+        recognitionRef.current.stop();
+      } else {
+        setInputValue("");
+        setRecognitionError(null);
+        recognitionRef.current.start();
+      }
+    }
+  };
+  // --- End STT Logic ---
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return
+    if (!inputValue.trim() || !sessionId) return;
 
-    const userMessage: Message = {
+    const userMessageContent = inputValue;
+    const newUserMessage: Message = {
       id: Date.now().toString(),
-      content: inputValue,
+      content: userMessageContent,
       role: "user",
-      timestamp: new Date(),
-    }
+      timestamp: new Date().toISOString(),
+    };
 
-    setMessages((prev) => [...prev, userMessage])
-    setInputValue("")
-    setIsTyping(true)
+    setMessages((prev) => [...prev, newUserMessage]);
+    setInputValue("");
+    setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        content: `Based on your query about "${inputValue}", I can provide information from ISRO's satellite data. Here's what I found from the MOSDAC portal and our knowledge graph...`,
-        role: "assistant",
-        timestamp: new Date(),
-        sources: ["MOSDAC Portal", "ISRO Satellite Database", "Mission Archives"],
-        isStreaming: true,
+    try {
+      const response = await fetch(`${BASE_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessageContent,
+          sessionId: sessionId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`
+        );
       }
 
-      setMessages((prev) => [...prev, aiResponse])
-      setIsTyping(false)
+      const data = await response.json();
+      console.log("Response from /api/chat (AI message):", data);
 
-      // Simulate streaming effect
-      setTimeout(() => {
-        setMessages((prev) => prev.map((msg) => (msg.id === aiResponse.id ? { ...msg, isStreaming: false } : msg)))
-      }, 2000)
-    }, 1500)
-  }
+      const aiMessage = data.aiMessage || data.reply; // Fallback for aiMessage or reply
+
+      if (
+        !aiMessage ||
+        typeof aiMessage.id !== "string" ||
+        typeof aiMessage.content !== "string" ||
+        (aiMessage.role !== "user" && aiMessage.role !== "assistant") ||
+        typeof aiMessage.timestamp !== "string"
+      ) {
+        console.error("Received invalid AI message format:", aiMessage);
+        throw new Error("Invalid AI message format received from backend.");
+      }
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (error: any) {
+      console.error("Error sending message or receiving AI response:", error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: `Oops! Something went wrong: ${
+          error.message || "Unknown error"
+        }. Please try again.`,
+        role: "assistant",
+        timestamp: new Date().toISOString(),
+        sources: [],
+        isStreaming: false,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleNewChat = () => {
+    localStorage.removeItem("chatSessionId");
+    setSessionId(null);
+    setMessages([]);
+    setIsTyping(false);
+    establishSession();
+  };
 
   const StreamingDots = () => (
-    <motion.div className="flex space-x-1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.div
+      className="flex space-x-1"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
       {[0, 1, 2].map((i) => (
         <motion.div
           key={i}
@@ -85,13 +337,56 @@ export function ChatInterface() {
         />
       ))}
     </motion.div>
-  )
+  );
+
+  // Determine if we should show the "start screen" welcome message
+  const showWelcomeMessage = messages.length === 0 && !isLoadingSession;
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-900/40 backdrop-blur-sm min-h-0">
-      {/* Chat Messages - Responsive padding */}
-      <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 md:space-y-4" aria-live="polite">
-        <div className="max-w-4xl mx-auto space-y-3 md:space-y-4">
+    <div className="flex-1 flex flex-col bg-slate-900/40 min-h-0 relative">
+      {/* Floating New Chat Button */}
+      {/* This button will always be visible as per the previous request, just not in the input area */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="fixed top-4 right-4 z-50"
+      >
+        <Button
+          onClick={handleNewChat}
+          disabled={isLoadingSession}
+          className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-3 shadow-lg flex items-center justify-center"
+          title="Start New Chat"
+        >
+          <PlusCircle className="w-5 h-5" />
+          <span className="ml-2 hidden md:inline">New Chat</span>
+        </Button>
+      </motion.div>
+
+      {/* Main Chat Messages Area */}
+      <div
+        className="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar" // Removed space-y-3/4 here, added to inner div
+        aria-live="polite"
+      >
+        {/* Conditionally rendered Welcome Message */}
+        {showWelcomeMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-center text-white mb-8 mt-auto flex flex-col justify-center items-center h-full" // Center vertically
+          >
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">
+              Hey, Ready to dive in?
+            </h1>
+            <p className="text-lg md:text-xl text-slate-400">
+              Ask about satellite data, missions, and more.
+            </p>
+          </motion.div>
+        )}
+
+        {/* Actual Chat Messages (always at the bottom when present) */}
+        <div className={`max-w-4xl mx-auto ${showWelcomeMessage ? 'hidden' : 'space-y-3 md:space-y-4'}`}>
           <AnimatePresence>
             {messages.map((message) => (
               <motion.div
@@ -100,19 +395,23 @@ export function ChatInterface() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex ${
+                  message.role === "user" ? "justify-end" : "justify-start"
+                }`}
               >
                 <Card
                   className={`max-w-[85%] md:max-w-[80%] p-3 md:p-4 ${
                     message.role === "user"
-                      ? "bg-blue-600/20 border-blue-500/30"
-                      : "bg-slate-800/50 border-slate-600/30"
+                      ? "bg-blue-700/20 border-blue-600/30 text-white"
+                      : "bg-slate-800/50 border-slate-600/30 text-white"
                   }`}
                 >
                   <div className="flex items-start space-x-2 md:space-x-3">
                     <div
                       className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        message.role === "user" ? "bg-blue-500" : "bg-gradient-to-br from-orange-500 to-red-600"
+                        message.role === "user"
+                          ? "bg-blue-500"
+                          : "bg-gradient-to-br from-orange-500 to-red-600"
                       }`}
                     >
                       {message.role === "user" ? (
@@ -122,13 +421,24 @@ export function ChatInterface() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white leading-relaxed text-sm md:text-base break-words">{message.content}</p>
+                      {message.role === "assistant" ? (
+                        <div className="leading-relaxed text-sm md:text-base break-words markdown-content">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="leading-relaxed text-sm md:text-base break-words">
+                          {message.content}
+                        </p>
+                      )}
+
                       {message.isStreaming && (
                         <div className="mt-2">
                           <StreamingDots />
                         </div>
                       )}
-                      {message.sources && (
+                      {message.sources && message.sources.length > 0 && (
                         <div className="mt-2 md:mt-3 flex flex-wrap gap-1 md:gap-2">
                           {message.sources.map((source, index) => (
                             <Badge
@@ -137,11 +447,25 @@ export function ChatInterface() {
                               className="text-xs bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 cursor-pointer"
                             >
                               <ExternalLink className="w-2 h-2 md:w-3 md:h-3 mr-1" />
-                              <span className="truncate max-w-[100px] md:max-w-none">{source}</span>
+                              <span className="truncate max-w-[100px] md:max-w-none">
+                                {source}
+                              </span>
                             </Badge>
                           ))}
                         </div>
                       )}
+                      <div
+                        className={`text-xs mt-1 ${
+                          message.role === "user"
+                            ? "text-blue-200"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {new Date(message.timestamp).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
                     </div>
                   </div>
                 </Card>
@@ -149,9 +473,12 @@ export function ChatInterface() {
             ))}
           </AnimatePresence>
 
-          {/* Typing indicator - responsive */}
           {isTyping && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex justify-start"
+            >
               <Card className="max-w-[85%] md:max-w-2xl p-3 md:p-4 bg-slate-800/50 border-slate-600/30">
                 <div className="flex items-center space-x-2 md:space-x-3">
                   <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
@@ -163,40 +490,82 @@ export function ChatInterface() {
             </motion.div>
           )}
 
+          {isLoadingSession && messages.length === 0 && (
+            <div className="flex justify-center items-center text-slate-400 py-4">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Initializing
+              chat session...
+            </div>
+          )}
+
+          {recognitionError && (
+            <div className="flex justify-center items-center text-red-400 py-2 text-sm">
+              <span className="mr-2">⚠️</span> {recognitionError}
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Input Area - Responsive */}
-      <div className="p-3 md:p-6 border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-md">
+      <motion.div
+        layout // Enable layout animations
+        className="p-3 md:p-6 border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-md" // Removed conditional positioning
+      >
         <div className="max-w-4xl mx-auto">
           <div className="flex space-x-2 md:space-x-4">
             <div className="flex-1 relative">
               <Input
-                placeholder="Ask about satellite data..."
+                placeholder={
+                  isListening
+                    ? "Listening..."
+                    : sessionId
+                    ? "Ask about satellite data..."
+                    : "Initializing chat..."
+                }
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                 className="pr-10 md:pr-12 bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 h-10 md:h-auto text-sm md:text-base"
+                disabled={
+                  isTyping || isLoadingSession || !sessionId || isListening
+                }
               />
               <Button
                 size="sm"
                 variant="ghost"
-                className="absolute right-1 md:right-2 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white p-1 md:p-2"
+                className={`absolute right-1 md:right-2 top-1/2 transform -translate-y-1/2 p-1 md:p-2 ${
+                  isListening
+                    ? "text-red-500 animate-pulse"
+                    : "text-slate-400 hover:text-black"
+                }`}
+                onClick={toggleListening}
+                disabled={isLoadingSession || !sessionId || isTyping}
+                title={isListening ? "Stop Listening" : "Start Voice Input"}
               >
-                <Mic className="w-3 h-3 md:w-4 md:h-4" />
+                {isListening ? (
+                  <StopCircle className="w-3 h-3 md:w-4 md:h-4" />
+                ) : (
+                  <Mic className="w-3 h-3 md:w-4 md:h-4" />
+                )}
               </Button>
             </div>
             <Button
               onClick={handleSendMessage}
-              disabled={!inputValue.trim()}
+              disabled={
+                !inputValue.trim() ||
+                isTyping ||
+                isLoadingSession ||
+                !sessionId ||
+                isListening
+              }
               className="bg-blue-600 hover:bg-blue-700 text-white h-10 md:h-auto px-3 md:px-4"
             >
               <Send className="w-3 h-3 md:w-4 md:h-4" />
             </Button>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
-  )
+  );
 }
