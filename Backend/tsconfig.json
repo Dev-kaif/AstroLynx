@@ -1,0 +1,16 @@
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "es2021",
+    "module": "commonjs", // Keep this as commonjs for now, as it's what we've been using
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    // "strict": true,
+    "skipLibCheck": true,
+    "moduleResolution": "node" // Added this line
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
+}

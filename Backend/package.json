@@ -1,0 +1,50 @@
+{
+  "name": "astro",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "crawl-full": "ts-node-dev --respawn src/Crawl/advancedCrawler.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@langchain/community": "^0.3.48",
+    "@langchain/core": "^0.3.62",
+    "@langchain/google-genai": "^0.2.14",
+    "@langchain/langgraph": "^0.3.7",
+    "@langchain/mongodb": "^0.1.0",
+    "@langchain/ollama": "^0.2.3",
+    "@langchain/pinecone": "^0.2.0",
+    "@pinecone-database/pinecone": "^5.0.2",
+    "@types/pdf-parse": "^1.1.5",
+    "axios": "^1.10.0",
+    "crawlee": "^3.13.9",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "langchain": "^0.3.29",
+    "mammoth": "^1.9.1",
+    "mongodb": "^6.17.0",
+    "neo4j-driver": "^5.28.1",
+    "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.17.1",
+    "simplecrawler": "^1.1.9",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/mongodb": "^4.0.6",
+    "@types/node": "^24.0.10",
+    "@types/pdfkit": "^0.14.0",
+    "@types/simplecrawler": "^1.1.5",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.3"
+  }
+}
