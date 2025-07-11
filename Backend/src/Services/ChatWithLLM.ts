@@ -40,7 +40,7 @@ Provide a clear, concise, factual answer based on the above.
   ]);
 
   try {
-    console.log("\n\n\n\n    question : ", state.context, "\n\n\n\n");
+    // console.log("\n\n\n\n    question : ", state.context, "\n\n\n\n");
 
     const response = await chain.invoke({
       question: state.question,

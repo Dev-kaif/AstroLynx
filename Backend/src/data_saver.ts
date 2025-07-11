@@ -57,18 +57,18 @@ async function pipeline(pdfDir: string) {
 
     // await pineStore.addDocuments(chunks);
 
-    const batchSize = 100; 
+    // const batchSize = 100; 
     
-    for (let i = 0; i < chunks.length; i += batchSize) {
-        const batch = chunks.slice(i, i + batchSize);
-        console.log(`Embedding batch ${i} - ${i + batch.length}`);
-        try {
-          await pineStore.addDocuments(batch);
-          console.log(`✅ Batch ${i} - ${i + batch.length} embedded.`);
-        } catch (e) {
-          console.error(`❌ Error embedding batch ${i} - ${i + batch.length}:`, e);
-        }
-      }
+    // for (let i = 0; i < chunks.length; i += batchSize) {
+    //     const batch = chunks.slice(i, i + batchSize);
+    //     console.log(`Embedding batch ${i} - ${i + batch.length}`);
+    //     try {
+    //       await pineStore.addDocuments(batch);
+    //       console.log(`✅ Batch ${i} - ${i + batch.length} embedded.`);
+    //     } catch (e) {
+    //       console.error(`❌ Error embedding batch ${i} - ${i + batch.length}:`, e);
+    //     }
+    //   }
 
     console.log("  🧠 Chunks embedded into Pinecone");
   }

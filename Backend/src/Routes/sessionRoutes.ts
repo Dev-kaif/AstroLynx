@@ -5,7 +5,7 @@ const router = Router();
 
 router.get("/",createSession)
 
-router.get("/histroy/:sessionId",getChatHistory)
+router.get("/history/:sessionId",getChatHistory)
 
 
 export default router;

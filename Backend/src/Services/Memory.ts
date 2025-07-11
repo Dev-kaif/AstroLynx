@@ -53,7 +53,7 @@ export async function buildContext(
     .filter((content) => content.length > 20)
     .join("\n---\n");
 
-  console.log("\n\n\n\n\n context from bulding ", retrievedContent, "\n\n\n\n");
+  // console.log("\n\n\n\n\n context from bulding ", retrievedContent, "\n\n\n\n");
 
   // Optional truncation for large retrieved content
   let context = retrievedContent || "No context provided.";
