@@ -1,4 +1,3 @@
-// Services/main.ts
 import {
   chatLLM,
   chatSessionsCollection,
@@ -49,13 +48,18 @@ export async function chat(
   const memory = await getSessionMemory(sessionId);
   const chatHistory = await memory.loadMemoryVariables({});
 
+  // Initialize AgentState with new fields for the advanced retrieval
   const initialState: AgentState = {
     question: userMessage,
     chat_history: chatHistory.chat_history,
-    retrieved_docs: [],
+    retrieved_docs: [], 
     context: "",
     neo4j_data: "",
     llm_response: "",
+    rewritten_queries: [],
+    hypothetical_doc_query: null,
+    raw_pinecone_results: [],
+    rrf_ranked_docs: [],
   };
 
   console.log(
@@ -91,7 +95,7 @@ export async function chat(
         "Could not retrieve newly saved AI message from DB. Using generated ID/timestamp."
       );
       return {
-        id: new Date().getTime().toString(), 
+        id: new Date().getTime().toString(),
         content: aiResponse,
         role: "assistant",
         timestamp: new Date().toISOString(),
@@ -119,5 +123,3 @@ export async function chat(
 //   }
 //   console.log("Chat service shutdown complete.");
 // }
-
-// // Listen for...

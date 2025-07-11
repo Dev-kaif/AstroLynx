@@ -16,8 +16,8 @@ export async function invokeLLM(
     `
 You are an AI assistant for MOSDAC (Meteorological & Oceanographic Satellite Data Archival Centre).
 Answer the user's question based on the provided context and chat history.
-If the context contains information relevant to the question, use it to provide the best possible answer. 
-If there is truly no relevant information, then say you cannot answer
+If the context contains information relevant to the question, use it to provide the best possible answer.
+If there is truly no relevant information, then say you cannot answer.
 Do not make up information.
 
 Context:
@@ -40,7 +40,7 @@ Provide a clear, concise, factual answer based on the above.
   ]);
 
   try {
-    // console.log("\n\n\n\n    question : ", state.context, "\n\n\n\n");
+    console.log("Context for LLM: \n", state.context, "\n\n\n\n");
 
     const response = await chain.invoke({
       question: state.question,
@@ -48,7 +48,7 @@ Provide a clear, concise, factual answer based on the above.
       chat_history: state.chat_history || "No prior chat history.",
     });
 
-    console.log("\n\n\n\n LLM Response ==> ", response, "\n\n\n\n");
+    console.log("LLM Response ==> ", response, "\n\n\n\n");
 
     console.log("LLM Response generated.");
     return { llm_response: response };
@@ -58,5 +58,73 @@ Provide a clear, concise, factual answer based on the above.
       llm_response:
         "I apologize, but I encountered an error while generating a response.",
     };
+  }
+}
+
+// Updated function for handling simple responses based on classification, now using LLM
+export async function handleSimpleResponse(
+  state: AgentState
+): Promise<Partial<AgentState>> {
+  console.log("LangGraph Node: handleSimpleResponse (LLM-driven)");
+  const classification = state.llm_response; // Assuming llm_response holds the classification from classifyQuery
+  const userQuestion = state.question; // Get the original user question
+
+  if (!chatLLM) {
+    console.warn("Chat LLM not initialized for simple response generation. Falling back to hardcoded.");
+    // Fallback to hardcoded if LLM is not available
+    let fallbackResponse: string;
+    if (classification === "greeting") {
+      fallbackResponse = "Hello there! How can I assist you with MOSDAC-related queries today?";
+    } else if (classification === "other") {
+      fallbackResponse = `I specialize in MOSDAC, satellite data, and space missions. Your question doesn't seem to be about that. Perhaps you could ask me something like "What is MOSDAC?" or "Tell me about ISRO's Chandrayaan mission?"`;
+    } else {
+      fallbackResponse = "I'm not sure how to respond to that. Please ask me about MOSDAC or space-related topics.";
+    }
+    return { llm_response: fallbackResponse };
+  }
+
+  let promptTemplate: PromptTemplate;
+
+  if (classification === "greeting") {
+    promptTemplate = PromptTemplate.fromTemplate(`
+You are an AI assistant for MOSDAC. The user just greeted you.
+Respond with a friendly greeting and offer to help with MOSDAC, satellite data, or space mission related queries.
+Keep your response concise and welcoming.
+
+User's greeting: {question}
+Your response:
+`);
+  } else if (classification === "other") {
+    promptTemplate = PromptTemplate.fromTemplate(`
+You are an AI assistant for MOSDAC. The user's question is not related to MOSDAC, satellite data, or space missions.
+Respond politely, stating that you specialize in MOSDAC and related topics. Gently nudge the user to ask a relevant question. You can be slightly playful or "roast" them very, very gently if it's completely off-topic, but always remain helpful and polite.
+
+User's question: {question}
+Your response:
+`);
+  } else {
+    // This case should ideally not be reached if classification is "mosdac" and routed correctly,
+    // but as a safety, provide a generic response.
+    promptTemplate = PromptTemplate.fromTemplate(`
+You are an AI assistant for MOSDAC. The user's question is: {question}.
+I'm not sure how to categorize this, please provide a helpful default response.
+Your response:
+`);
+  }
+
+  const chain = RunnableSequence.from([
+    promptTemplate,
+    chatLLM,
+    new StringOutputParser(),
+  ]);
+
+  try {
+    const response = await chain.invoke({ question: userQuestion });
+    console.log(`LLM-generated simple response for classification "${classification}": ${response}`);
+    return { llm_response: response };
+  } catch (e: any) {
+    console.error(`Error generating simple response with LLM for classification "${classification}": ${e.message || e}`);
+    // Fallback to a generic message on LLM error
+    return { llm_response: "I encountered an issue while trying to respond. Please try again or ask a MOSDAC-related question." };
   }
 }

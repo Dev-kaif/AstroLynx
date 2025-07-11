@@ -1,3 +1,4 @@
+// Services/Memory.ts
 import { MongoDBChatMessageHistory } from "@langchain/mongodb";
 import { BufferWindowMemory } from "langchain/memory";
 import { chatSessionsCollection } from "./initializeChatService";
@@ -12,10 +13,14 @@ const MEMORY_WINDOW_SIZE = 10;
 export interface AgentState {
   question: string;
   chat_history: BaseMessage[];
-  retrieved_docs: Document[];
-  neo4j_data: string;
+  retrieved_docs: Document[]; 
+  neo4j_data: string; 
   llm_response: string;
   context?: string;
+  rewritten_queries?: string[]; 
+  hypothetical_doc_query?: string; 
+  raw_pinecone_results?: Document[][]; 
+  rrf_ranked_docs?: Document[]; 
 }
 
 // Function to get or create a memory instance for a session, now using MongoDBChatMessageHistory
@@ -26,7 +31,7 @@ export async function getSessionMemory(
     throw new Error("MongoDB chat sessions collection is not initialized.");
   }
 
-  // MongoDBChatMessageHistory handles loading/saving internally
+  // MongoDBCatMessageHistory handles loading/saving internally
   const chatHistory = new MongoDBChatMessageHistory({
     collection: chatSessionsCollection,
     sessionId: sessionId,
@@ -48,15 +53,30 @@ export async function buildContext(
 ): Promise<Partial<AgentState>> {
   console.log("LangGraph Node: buildContext");
 
-  const retrievedContent = state.retrieved_docs
-    .map((doc) => doc.pageContent)
-    .filter((content) => content.length > 20)
-    .join("\n---\n");
+  // Use rrf_ranked_docs for Pinecone data
+  const pineconeContent = state.rrf_ranked_docs
+    ?.map((doc) => doc.pageContent)
+    .filter((content) => content.length > 20) // Filter out very short or empty documents
+    .join("\n---\n"); // Use a clear separator between documents
 
-  // console.log("\n\n\n\n\n context from bulding ", retrievedContent, "\n\n\n\n");
+  let context = "";
+  if (pineconeContent) {
+    context += `Vector Search Results:\n${pineconeContent}\n\n`;
+  } else {
+    context += "Vector Search Results: No relevant information found from Pinecone.\n\n";
+  }
+
+  // Add Neo4j data if available
+  if (state.neo4j_data && state.neo4j_data !== "No relevant semantic nodes found in Neo4j." && !state.neo4j_data.startsWith("Error retrieving semantic relations")) {
+    context += `Knowledge Graph Data:\n${state.neo4j_data}\n\n`;
+  } else {
+    context += "Knowledge Graph Data: No relevant information found from Neo4j.\n\n";
+  }
+
+
+  console.log("Context built for LLM: \n", context, "\n\n\n\n");
 
   // Optional truncation for large retrieved content
-  let context = retrievedContent || "No context provided.";
   if (
     chatLLM &&
     chatLLM.getNumTokens &&
@@ -65,11 +85,9 @@ export async function buildContext(
     console.warn("Context too large. Truncating context for LLM.");
     const tokens = await chatLLM.getNumTokens(context);
     const ratio = CONTEXT_MAX_TOKENS / tokens;
-    context = context.substring(Math.floor(context.length * (1 - ratio)));
-    context = `(Context truncated due to length)\n${context}`;
+    // Simple truncation: keep the beginning part of the context
+    context = context.substring(0, Math.floor(context.length * ratio));
   }
 
-  return {
-    context: context,
-  };
+  return { context: context, retrieved_docs: state.rrf_ranked_docs || [] }; // Pass rrf_ranked_docs as retrieved_docs
 }

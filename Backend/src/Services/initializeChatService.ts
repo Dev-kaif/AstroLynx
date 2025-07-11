@@ -5,9 +5,9 @@ import { Pinecone } from "@pinecone-database/pinecone";
 import { Collection, MongoClient} from "mongodb";
 import { GEMINI_API_KEY, LLM_MODEL_NAME, MONGO_COLLECTION_NAME, MONGO_DB_NAME, MONGO_URI, PINECONE_API_KEY, PINECONE_ENVIRONMENT, PINECONE_INDEX_NAME } from "../utils/Config";
 
-// import { NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME } from "../utils/Config";
-// import { Driver } from "neo4j-driver";
-// import neo4j from 'neo4j-driver';
+import { NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME } from "../utils/Config";
+import { Driver } from "neo4j-driver";
+import neo4j from 'neo4j-driver';
 
 
 
@@ -21,7 +21,7 @@ export let embeddings: OllamaEmbeddings | null = null;
 export let mongoClient: MongoClient| null = null;
 export let chatSessionsCollection: Collection | null = null;
 
-// export let neo4jDriver: Driver | null = null;
+export let neo4jDriver: Driver | null = null;
 
 
 
@@ -84,28 +84,28 @@ export async function initializeChatService(): Promise<void> {
     throw e;
   }
 
-//   // Initialize Neo4j
-//   if (
-//     !NEO4J_URI ||
-//     !NEO4J_USERNAME ||
-//     !NEO4J_PASSWORD
-//   ) {
-//     console.error(
-//       "Error: Neo4j connection details not fully set or are placeholders."
-//     );
-//     throw new Error("Neo4j credentials are missing.");
-//   }
-//   neo4jDriver = neo4j.driver(
-//     NEO4J_URI,
-//     neo4j.auth.basic(NEO4J_USERNAME, NEO4J_PASSWORD)
-//   );
-//   try {
-//     await neo4jDriver.verifyConnectivity();
-//     console.log("Neo4j driver connected successfully.");
-//   } catch (e: any) {
-//     console.error(`Failed to connect to Neo4j: ${e.message || e}`);
-//     throw e;
-//   }
+  // Initialize Neo4j
+  if (
+    !NEO4J_URI ||
+    !NEO4J_USERNAME ||
+    !NEO4J_PASSWORD
+  ) {
+    console.error(
+      "Error: Neo4j connection details not fully set or are placeholders."
+    );
+    throw new Error("Neo4j credentials are missing.");
+  }
+  neo4jDriver = neo4j.driver(
+    NEO4J_URI,
+    neo4j.auth.basic(NEO4J_USERNAME, NEO4J_PASSWORD)
+  );
+  try {
+    await neo4jDriver.verifyConnectivity();
+    console.log("Neo4j driver connected successfully.");
+  } catch (e: any) {
+    console.error(`Failed to connect to Neo4j: ${e.message || e}`);
+    throw e;
+  }
 
   
   // Initialize MongoDB

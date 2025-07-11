@@ -42,8 +42,6 @@ type Message = {
 const BASE_URL = "http://localhost:5000"; // Your backend URL
 
 // User's provided explicit global API declarations
-declare const SpeechRecognition: typeof window.SpeechRecognition;
-declare const SpeechRecognitionEvent: typeof window.SpeechRecognitionEvent;
 
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
