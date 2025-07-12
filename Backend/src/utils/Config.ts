@@ -19,3 +19,5 @@ export const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD as string;
 export const MONGO_URI = process.env.MONGO_URI as string;
 export const MONGO_DB_NAME =  process.env.MONGO_DB_NAME as string;
 export const MONGO_COLLECTION_NAME =  process.env.MONGO_COLLECTION_NAME as string;
+
+export const SARVAM_AI_API_KEY = process.env.SARVAM_AI_API_KEY;

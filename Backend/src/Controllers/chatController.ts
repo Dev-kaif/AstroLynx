@@ -3,8 +3,7 @@ import { Request, Response } from "express";
 import { chat } from "../Services/main";
 
 export const chatHandeler = async (req: Request, res: Response) => {
-  // Destructure imageData from the request body (NEW)
-  const { message, sessionId, imageData } = req.body;
+  const { message, sessionId, imageData, isAudioMode } = req.body;
 
   if (!message) {
     res.status(400).json({ error: 'Message is required in the request body.' });
@@ -17,13 +16,15 @@ export const chatHandeler = async (req: Request, res: Response) => {
   if (imageData) {
     console.log(`Received image data (length: ${imageData.length}) in chat request.`);
   }
+  if (isAudioMode) { 
+    console.log("Audio mode requested by frontend.");
+  }
 
   try {
-    // Pass imageData to the chat service function (NEW ARGUMENT)
-    const response = await chat(message, userSessionId, imageData);
+    const response = await chat(message, userSessionId, imageData, isAudioMode);
 
     res.json({
-      reply: response,
+      aiMessage: response, 
       sessionId: userSessionId,
     });
     return;
