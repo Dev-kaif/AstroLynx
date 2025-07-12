@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, ChangeEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
@@ -11,6 +11,8 @@ import {
   Loader2,
   PlusCircle,
   StopCircle,
+  Image as ImageIcon, // Renamed to avoid conflict with HTML Image element
+  XCircle, // For clearing image preview
 } from "lucide-react";
 
 // Import ReactMarkdown and remarkGfm
@@ -20,6 +22,8 @@ import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
+import Image from "next/image";
+import { Textarea } from "./ui/textarea";
 
 // User's provided global type declarations
 declare global {
@@ -37,11 +41,10 @@ type Message = {
   timestamp: string;
   sources?: string[];
   isStreaming?: boolean;
+  imageData?: string; // NEW: Optional Base64 image data for user messages
 };
 
-const BASE_URL = "http://localhost:5000"; // Your backend URL
-
-// User's provided explicit global API declarations
+const BASE_URL = "http://localhost:5000"; // Your backend URL (adjusted to 3000)
 
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -52,9 +55,16 @@ export function ChatInterface() {
   const [isListening, setIsListening] = useState(false);
   const [recognitionError, setRecognitionError] = useState<string | null>(null);
 
+  // NEW: State for image upload
+  const [selectedImage, setSelectedImage] = useState<{
+    base64: string;
+    previewUrl: string;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for hidden file input
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // User's provided type for recognitionRef
   const recognitionRef = useRef<any>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -86,7 +96,6 @@ export function ChatInterface() {
         );
         setMessages(validHistory);
       } else {
-        // Removed the initial welcome message here
         setMessages([]); // Ensure messages are empty if no history
       }
     } catch (error) {
@@ -117,7 +126,6 @@ export function ChatInterface() {
       setSessionId(currentSessionId);
       await fetchChatHistory(currentSessionId);
     } else {
-      // Removed the initial welcome message here
       setMessages([]); // Start with an empty message array
       console.log(
         "No session ID found. Requesting new session from backend..."
@@ -177,9 +185,9 @@ export function ChatInterface() {
         console.log("Speech recognition started");
       };
 
-      recognition.onresult = (event: any) => { // Using 'any' as per user's request
+      recognition.onresult = (event: any) => {
         const interimTranscript = Array.from(event.results)
-          .map((result: any) => result[0].transcript) // Using 'any' as per user's request
+          .map((result: any) => result[0].transcript)
           .join("");
         setInputValue(interimTranscript);
       };
@@ -187,15 +195,14 @@ export function ChatInterface() {
       recognition.onend = () => {
         setIsListening(false);
         console.log("Speech recognition ended");
-        setInputValue((currentInputValue) => {
-          if (currentInputValue.trim()) {
-            handleSendMessage();
-          }
-          return currentInputValue;
-        });
+        // Only send message if there's actual speech input
+        if (inputValue.trim()) {
+          // Use current inputValue from state
+          handleSendMessage();
+        }
       };
 
-      recognition.onerror = (event: any) => { // Using 'any' as per user's request
+      recognition.onerror = (event: any) => {
         setIsListening(false);
         console.error("Speech recognition error:", event.error);
         let errorMessage = "Speech recognition error.";
@@ -237,8 +244,47 @@ export function ChatInterface() {
   };
   // --- End STT Logic ---
 
+  // NEW: Image Upload Handlers
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type (optional)
+      if (!file.type.startsWith("image/")) {
+        alert("Please upload an image file (e.g., JPG, PNG, GIF).");
+        return;
+      }
+      // Validate file size (optional, e.g., 5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image file size exceeds 5MB limit.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage({
+          base64: reader.result as string,
+          previewUrl: URL.createObjectURL(file), // Create object URL for preview
+        });
+      };
+      reader.readAsDataURL(file); // Read file as Base64
+    }
+  };
+
+  const handleImageButtonClick = () => {
+    fileInputRef.current?.click(); // Trigger hidden file input click
+  };
+
+  const clearSelectedImage = () => {
+    if (selectedImage?.previewUrl) {
+      URL.revokeObjectURL(selectedImage.previewUrl); // Clean up object URL
+    }
+    setSelectedImage(null);
+  };
+
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !sessionId) return;
+    // Allow sending message with only image, or only text, or both
+    if (!inputValue.trim() && !selectedImage) return;
+    if (!sessionId) return;
 
     const userMessageContent = inputValue;
     const newUserMessage: Message = {
@@ -246,10 +292,12 @@ export function ChatInterface() {
       content: userMessageContent,
       role: "user",
       timestamp: new Date().toISOString(),
+      imageData: selectedImage?.base64, // Include Base64 image data if present
     };
 
     setMessages((prev) => [...prev, newUserMessage]);
     setInputValue("");
+    clearSelectedImage(); // Clear selected image after sending
     setIsTyping(true);
 
     try {
@@ -259,6 +307,7 @@ export function ChatInterface() {
         body: JSON.stringify({
           message: userMessageContent,
           sessionId: sessionId,
+          imageData: newUserMessage.imageData, // Pass imageData to backend
         }),
       });
 
@@ -309,6 +358,7 @@ export function ChatInterface() {
     setSessionId(null);
     setMessages([]);
     setIsTyping(false);
+    clearSelectedImage(); // Clear image on new chat
     establishSession();
   };
 
@@ -341,9 +391,8 @@ export function ChatInterface() {
   const showWelcomeMessage = messages.length === 0 && !isLoadingSession;
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-900/40 min-h-0 relative">
+    <div className="flex-1 flex flex-col bg-slate-900/40 backdrop-blur-sm min-h-0 relative">
       {/* Floating New Chat Button */}
-      {/* This button will always be visible as per the previous request, just not in the input area */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -363,7 +412,7 @@ export function ChatInterface() {
 
       {/* Main Chat Messages Area */}
       <div
-        className="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar" // Removed space-y-3/4 here, added to inner div
+        className="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar"
         aria-live="polite"
       >
         {/* Conditionally rendered Welcome Message */}
@@ -372,7 +421,7 @@ export function ChatInterface() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center text-white mb-8 mt-auto flex flex-col justify-center items-center h-full" // Center vertically
+            className="text-center text-white mb-8 mt-auto flex flex-col justify-center items-center h-full"
           >
             <h1 className="text-3xl md:text-4xl font-bold mb-2">
               Hey, Ready to dive in?
@@ -384,7 +433,11 @@ export function ChatInterface() {
         )}
 
         {/* Actual Chat Messages (always at the bottom when present) */}
-        <div className={`max-w-4xl mx-auto ${showWelcomeMessage ? 'hidden' : 'space-y-3 md:space-y-4'}`}>
+        <div
+          className={`max-w-4xl mx-auto ${
+            showWelcomeMessage ? "hidden" : "space-y-3 md:space-y-4"
+          }`}
+        >
           <AnimatePresence>
             {messages.map((message) => (
               <motion.div
@@ -407,20 +460,36 @@ export function ChatInterface() {
                   <div className="flex items-start space-x-2 md:space-x-3">
                     <div
                       className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        message.role === "user"
-                          ? "bg-blue-500"
-                          : "bg-gradient-to-br from-orange-500 to-red-600"
+                        message.role === "user" ? "bg-blue-500" : "bg-white"
                       }`}
                     >
                       {message.role === "user" ? (
                         <User className="w-3 h-3 md:w-4 md:h-4 text-white" />
                       ) : (
-                        <Bot className="w-3 h-3 md:w-4 md:h-4 text-white" />
+                        <Image
+                          height={100}
+                          width={100}
+                          src={"/logo.png"}
+                          alt="logo"
+                          className="w-full text-white"
+                        />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
+                      {/* Display image if present in user message */}
+                      {message.role === "user" && message.imageData && (
+                        <div className="mb-2 rounded-lg overflow-hidden border border-slate-600">
+                          <img
+                            src={message.imageData}
+                            alt="Uploaded by user"
+                            className="max-w-full h-auto rounded-md"
+                            style={{ maxHeight: "200px", objectFit: "contain" }}
+                          />
+                        </div>
+                      )}
+
                       {message.role === "assistant" ? (
-                        <div className="leading-relaxed text-sm md:text-base break-words markdown-content">
+                        <div className="leading-relaxed text-sm md:text-base break-words markdown-content prose prose-invert prose-sm md:prose-base max-w-none">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {message.content}
                           </ReactMarkdown>
@@ -508,12 +577,66 @@ export function ChatInterface() {
       {/* Input Area - Responsive */}
       <motion.div
         layout // Enable layout animations
-        className="p-3 md:p-6 border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-md" // Removed conditional positioning
+        className="p-3 md:p-6 border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-md"
       >
         <div className="max-w-4xl mx-auto">
+          {/* NEW: Image Preview Area (moved here) */}
+          {selectedImage && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="relative mb-3 p-2 border border-slate-600 rounded-lg bg-slate-800/50 flex items-center justify-center"
+            >
+              <img
+                src={selectedImage.previewUrl}
+                alt="Preview"
+                className="max-w-full h-auto rounded-md"
+                style={{ maxHeight: "150px", objectFit: "contain" }}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="absolute top-1 right-1 text-red-400 hover:text-red-500 p-1"
+                onClick={clearSelectedImage}
+                title="Remove image"
+              >
+                <XCircle className="w-4 h-4" />
+              </Button>
+            </motion.div>
+          )}
+
           <div className="flex space-x-2 md:space-x-4">
             <div className="flex-1 relative">
-              <Input
+              {/* Hidden file input */}
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                style={{ display: "none" }}
+              />
+
+              {/* Image Upload Button (inside the Input's container) */}
+              <Button
+                size="sm"
+                variant="ghost"
+                className={`absolute left-1 md:left-2 top-1/2 transform -translate-y-1/2 p-1 md:p-2 ${
+                  isLoadingSession || !sessionId || isTyping || isListening
+                    ? "text-slate-600 cursor-not-allowed"
+                    : "text-slate-400 hover:text-black"
+                }`}
+                onClick={handleImageButtonClick}
+                disabled={
+                  isLoadingSession || !sessionId || isTyping || isListening
+                }
+                title="Upload Image"
+              >
+                <ImageIcon className="w-4 h-4 md:w-5 md:h-5" />
+              </Button>
+
+              <Textarea
+                ref={textareaRef} // Assign ref to Textarea
                 placeholder={
                   isListening
                     ? "Listening..."
@@ -523,12 +646,21 @@ export function ChatInterface() {
                 }
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                className="pr-10 md:pr-12 bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 h-10 md:h-auto text-sm md:text-base"
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                rows={1}
+                // Adjusted padding-left and padding-right to make space for buttons
+                // Removed fixed height, added min-h, py-2
+                className="pl-10 pr-10 md:pl-12 md:pr-12 bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-sm md:text-base resize-none overflow-y-hidden min-h-[40px] md:min-h-[auto] py-2"
                 disabled={
                   isTyping || isLoadingSession || !sessionId || isListening
                 }
               />
+
               <Button
                 size="sm"
                 variant="ghost"
@@ -551,7 +683,7 @@ export function ChatInterface() {
             <Button
               onClick={handleSendMessage}
               disabled={
-                !inputValue.trim() ||
+                (!inputValue.trim() && !selectedImage) || // Disable if no text AND no image
                 isTyping ||
                 isLoadingSession ||
                 !sessionId ||

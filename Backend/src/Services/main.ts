@@ -1,3 +1,4 @@
+// Services/main.ts
 import {
   chatLLM,
   chatSessionsCollection,
@@ -7,7 +8,7 @@ import {
 } from "./initializeChatService";
 import { graph } from "./LangGraphChain";
 import { AgentState, getSessionMemory } from "./Memory";
-import { ObjectId } from "mongodb"; // Import ObjectId
+import { ObjectId } from "mongodb";
 
 // --- Initialization Call ---
 initializeChatService().catch((err) => {
@@ -18,14 +19,14 @@ initializeChatService().catch((err) => {
 // --- Main Chat Function ---
 export async function chat(
   userMessage: string,
-  sessionId: string
+  sessionId: string,
+  imageData?: string // NEW: Optional imageData parameter
 ): Promise<{
   id: string;
   content: string;
   role: "assistant";
   timestamp: string;
 }> {
-  // Updated return type
   // Check if services are initialized. If not, attempt to re-initialize.
   if (
     !chatLLM ||
@@ -48,11 +49,11 @@ export async function chat(
   const memory = await getSessionMemory(sessionId);
   const chatHistory = await memory.loadMemoryVariables({});
 
-  // Initialize AgentState with new fields for the advanced retrieval
+  // Initialize AgentState with new fields, including imageData
   const initialState: AgentState = {
     question: userMessage,
     chat_history: chatHistory.chat_history,
-    retrieved_docs: [], 
+    retrieved_docs: [],
     context: "",
     neo4j_data: "",
     llm_response: "",
@@ -60,6 +61,7 @@ export async function chat(
     hypothetical_doc_query: null,
     raw_pinecone_results: [],
     rrf_ranked_docs: [],
+    imageData: imageData, // NEW: Pass imageData into the initial state
   };
 
   console.log(
@@ -73,11 +75,9 @@ export async function chat(
     // Save the new turn to memory (MongoDBChatMessageHistory will handle persistence)
     await memory.saveContext({ question: userMessage }, { output: aiResponse });
 
-    // After saving, retrieve the *just saved* AI message from MongoDB
-    // This allows us to get its actual _id and creation timestamp from the database.
     const lastAIMessageDoc = await chatSessionsCollection.findOne(
-      { sessionId: sessionId, type: "ai", "data.content": aiResponse }, // Find the specific AI message by content and type for this session
-      { sort: { _id: -1 } } // Get the most recent one to ensure it's the one we just saved
+      { sessionId: sessionId, type: "ai", "data.content": aiResponse },
+      { sort: { _id: -1 } }
     );
 
     if (lastAIMessageDoc) {
@@ -90,7 +90,6 @@ export async function chat(
         timestamp: timestamp.toISOString(),
       };
     } else {
-      // Fallback if the just-saved message isn't found immediately (should be rare)
       console.warn(
         "Could not retrieve newly saved AI message from DB. Using generated ID/timestamp."
       );
@@ -105,21 +104,6 @@ export async function chat(
     console.error(
       `Error during graph execution for session ${sessionId}: ${e.message || e}`
     );
-    // Re-throw the error so chatHandeler can catch it and return a 500
     throw new Error(e.message || "Failed to process your request.");
   }
 }
-
-// --- Graceful Shutdown ---
-// async function shutdownChatService(): Promise<void> {
-//   console.log("Shutting down chat service...");
-//   // if (neo4jDriver) {
-//   //   await neo4jDriver.close();
-//   //   console.log("Neo4j driver closed.");
-//   // }
-//   if (mongoClient) {
-//     await mongoClient.close();
-//     console.log("MongoDB client closed.");
-//   }
-//   console.log("Chat service shutdown complete.");
-// }

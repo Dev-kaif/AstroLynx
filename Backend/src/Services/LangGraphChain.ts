@@ -1,3 +1,4 @@
+// Services/LangGraphChain.ts
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { invokeLLM, handleSimpleResponse } from "./ChatWithLLM";
 import { AgentState, buildContext } from "./Memory";
@@ -47,6 +48,10 @@ const StateAnnotation = Annotation.Root({
     value: (_, right) => right,
     default: () => [],
   }),
+  imageData: Annotation<string | null>({
+    value: (_, right) => right,
+    default: () => null,
+  }),
 });
 
 const routeQuery = (state: AgentState): string => {
@@ -55,7 +60,6 @@ const routeQuery = (state: AgentState): string => {
     `Routing based on classification (returning classification string): "${classification}"`
   );
 
-  // Ensure we always return one of the expected classification strings
   if (classification === "greeting") {
     return "greeting";
   } else if (classification === "other") {
@@ -67,8 +71,8 @@ const routeQuery = (state: AgentState): string => {
 };
 
 const workflow = new StateGraph(StateAnnotation)
-  .addNode("classifyQuery", classifyQuery)
-  .addNode("handleSimpleResponse", handleSimpleResponse) 
+  .addNode("classifyQuery", classifyQuery) // First step to classify the query
+  .addNode("handleSimpleResponse", handleSimpleResponse) // Node for simple LLM responses
   .addNode("queryTransformation", queryTransformation)
   .addNode("parallelRetrieval", parallelRetrieval)
   .addNode("rrfReRanking", rrfReRanking)
@@ -78,18 +82,14 @@ const workflow = new StateGraph(StateAnnotation)
 
 workflow.addEdge(START, "classifyQuery");
 
-workflow.addConditionalEdges(
-  "classifyQuery", 
-  routeQuery, 
-  {
-    greeting: "handleSimpleResponse", 
-    other: "handleSimpleResponse", 
-    mosdac: "queryTransformation", 
-  }
-);
+workflow.addConditionalEdges("classifyQuery", routeQuery, {
+  greeting: "handleSimpleResponse",
+  other: "handleSimpleResponse",
+  mosdac: "queryTransformation",
+});
 
 // Paths for simple responses
-workflow.addEdge("handleSimpleResponse", END); 
+workflow.addEdge("handleSimpleResponse", END);
 
 // Existing RAG pipeline edges (only taken if classification is "mosdac")
 workflow.addEdge("queryTransformation", "parallelRetrieval");

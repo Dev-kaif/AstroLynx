@@ -11,8 +11,7 @@ const app = express();
 const port = process.env.PORT;
 
 app.use(cors());
-// Increase limit for image uploads (Base64 can be large)
-app.use(express.json({ limit: '50mb' })); // Ensure this is applied before routes
+app.use(express.json({ limit: '50mb' }));
 
 app.use("/api/chat", chatRoute);
 app.use("/api/session", sessionRoutes);

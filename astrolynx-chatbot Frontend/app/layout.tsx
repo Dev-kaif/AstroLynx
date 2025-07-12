@@ -20,12 +20,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <StarfieldBackground />
-        {/* <Navigation/> */}
-        {children}
-      </body>
-    </html>
+    <>
+      <head>
+        <link rel="shortcut icon" href="/favicon.png" type="image/x-icon" />
+      </head>
+      <html lang="en">
+        <body className={inter.className}>
+          <StarfieldBackground />
+          {/* <Navigation/> */}
+          {children}
+        </body>
+      </html>
+    </>
   );
 }
