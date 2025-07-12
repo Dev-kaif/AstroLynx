@@ -3,7 +3,8 @@ import { Request, Response } from "express";
 import { chat } from "../Services/main";
 
 export const chatHandeler = async (req: Request, res: Response) => {
-  const { message, sessionId, imageData, isAudioMode } = req.body;
+  // Destructure message, sessionId, imageData, isAudioMode, and NEW: targetLanguage from the request body
+  const { message, sessionId, imageData, isAudioMode, targetLanguage } = req.body;
 
   if (!message) {
     res.status(400).json({ error: 'Message is required in the request body.' });
@@ -16,15 +17,20 @@ export const chatHandeler = async (req: Request, res: Response) => {
   if (imageData) {
     console.log(`Received image data (length: ${imageData.length}) in chat request.`);
   }
-  if (isAudioMode) { 
+  if (isAudioMode) {
     console.log("Audio mode requested by frontend.");
+  }
+  if (targetLanguage) { // NEW: Log target language
+    console.log(`Target language requested: ${targetLanguage}`);
   }
 
   try {
-    const response = await chat(message, userSessionId, imageData, isAudioMode);
+    // Pass targetLanguage to the chat service function (NEW ARGUMENT)
+    const response = await chat(message, userSessionId, imageData, isAudioMode, targetLanguage);
 
+    // Send back the full response object, which now includes audioData if present
     res.json({
-      aiMessage: response, 
+      aiMessage: response, // This object now contains id, content, role, timestamp, and potentially audioData
       sessionId: userSessionId,
     });
     return;

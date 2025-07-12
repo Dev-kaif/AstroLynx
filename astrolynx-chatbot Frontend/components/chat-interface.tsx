@@ -4,18 +4,18 @@ import { useState, useRef, useEffect, useCallback, ChangeEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
-  Mic,
   User,
   Bot,
   ExternalLink,
   Loader2,
   PlusCircle,
-  StopCircle,
-  Image as ImageIcon, // Renamed to avoid conflict with HTML Image element
-  XCircle, // For clearing image preview
+  Image as ImageIcon,
+  XCircle,
+  Languages, // Icon for language selection
+  Mic, // Re-added Mic icon
+  StopCircle, // Re-added StopCircle icon
 } from "lucide-react";
 
-// Import ReactMarkdown and remarkGfm
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "./ui/button";
@@ -25,7 +25,7 @@ import { Input } from "./ui/input";
 import Image from "next/image";
 import { Textarea } from "./ui/textarea";
 
-// User's provided global type declarations
+// Re-added global type declarations for SpeechRecognition
 declare global {
   interface Window {
     SpeechRecognition: any;
@@ -33,7 +33,6 @@ declare global {
   }
 }
 
-// Define the Message type to match backend's structured output
 type Message = {
   id: string;
   content: string;
@@ -41,10 +40,23 @@ type Message = {
   timestamp: string;
   sources?: string[];
   isStreaming?: boolean;
-  imageData?: string; // NEW: Optional Base64 image data for user messages
+  imageData?: string;
+  // audioData?: string; // Still removed
 };
 
-const BASE_URL = "http://localhost:5000"; // Your backend URL (adjusted to 3000)
+const BASE_URL = "http://localhost:5000";
+
+// Define supported languages for the dropdown
+const LANGUAGES = [
+  { code: "en", name: "English" },
+  { code: "es", name: "Español" },
+  { code: "fr", name: "Français" },
+  { code: "hi", name: "हिन्दी" },
+  { code: "hi-en", name: "Hinglish" },
+  { code: "de", name: "Deutsch" },
+];
+
+// Removed ListeningModal component definition
 
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -52,23 +64,44 @@ export function ChatInterface() {
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+  // Re-added isListening state
   const [isListening, setIsListening] = useState(false);
-  const [recognitionError, setRecognitionError] = useState<string | null>(null);
+  // Removed recognitionError state as it was tied to the modal
+  // const [recognitionError, setRecognitionError] = useState<string | null>(null);
 
-  // NEW: State for image upload
   const [selectedImage, setSelectedImage] = useState<{
     base64: string;
     previewUrl: string;
   } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for hidden file input
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Re-added recognitionRef
   const recognitionRef = useRef<any>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Audio mode states remain removed
+  // const [isAudioModeActive, setIsAudioModeActive] = useState(false);
+  // const [isSpeakingAI, setIsSpeakingAI] = useState(false);
+  // const [aiSpeakingText, setAiSpeakingText] = useState<string>("");
+  // const audioPlayerInstanceRef = useRef<HTMLAudioElement | null>(null);
+  // const [isContinuousAudioModalOpen, setIsContinuousAudioModalOpen] = useState(false);
+
+  // State for selected language, default to English
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Auto-resize textarea logic
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height =
+        textareaRef.current.scrollHeight + "px";
+    }
+  }, [inputValue, selectedImage]);
 
   const fetchChatHistory = useCallback(async (currentSessionId: string) => {
     try {
@@ -96,7 +129,7 @@ export function ChatInterface() {
         );
         setMessages(validHistory);
       } else {
-        setMessages([]); // Ensure messages are empty if no history
+        setMessages([]);
       }
     } catch (error) {
       console.error("Error fetching chat history:", error);
@@ -126,7 +159,7 @@ export function ChatInterface() {
       setSessionId(currentSessionId);
       await fetchChatHistory(currentSessionId);
     } else {
-      setMessages([]); // Start with an empty message array
+      setMessages([]);
       console.log(
         "No session ID found. Requesting new session from backend..."
       );
@@ -168,7 +201,94 @@ export function ChatInterface() {
     scrollToBottom();
   }, [messages]);
 
-  // --- Speech-to-Text (STT) Logic ---
+  // Removed playSound function
+  // Removed playAiResponse function
+  // Removed toggleListeningForContinuousMode function
+
+  // handleSendMessage now accepts an optional messageContent parameter (kept for flexibility)
+  const handleSendMessage = useCallback(
+    async (messageContentOverride?: string) => {
+      // If an override is provided (from STT), use it; otherwise, use the current inputValue state.
+      const messageToSend =
+        messageContentOverride !== undefined
+          ? messageContentOverride
+          : inputValue;
+
+      if (!messageToSend.trim() && !selectedImage) return;
+      if (!sessionId) return;
+
+      const userMessageContent = messageToSend;
+
+      const newUserMessage: Message = {
+        id: Date.now().toString(),
+        content: userMessageContent,
+        role: "user",
+        timestamp: new Date().toISOString(),
+        imageData: selectedImage?.base64,
+      };
+
+      setMessages((prev) => [...prev, newUserMessage]);
+      setInputValue("");
+      clearSelectedImage();
+      setIsTyping(true);
+
+      try {
+        const response = await fetch(`${BASE_URL}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: userMessageContent,
+            sessionId: sessionId,
+            imageData: newUserMessage.imageData,
+            targetLanguage: selectedLanguage,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error || `HTTP error! status: ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+        console.log("Response from /api/chat (AI message):", data);
+
+        const aiMessage: Message = data.aiMessage || data.reply;
+
+        if (
+          !aiMessage ||
+          typeof aiMessage.id !== "string" ||
+          typeof aiMessage.content !== "string" ||
+          (aiMessage.role !== "user" && aiMessage.role !== "assistant") ||
+          typeof aiMessage.timestamp !== "string"
+        ) {
+          console.error("Received invalid AI message format:", aiMessage);
+          throw new Error("Invalid AI message format received from backend.");
+        }
+
+        setMessages((prev) => [...prev, aiMessage]);
+      } catch (error: any) {
+        console.error("Error sending message or receiving AI response:", error);
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content: `Oops! Something went wrong: ${
+            error.message || "Unknown error"
+          }. Please try again.`,
+          role: "assistant",
+          timestamp: new Date().toISOString(),
+          sources: [],
+          isStreaming: false,
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [sessionId, selectedImage, inputValue, selectedLanguage]
+  );
+
+  // Re-added Speech-to-Text (STT) Logic useEffect for one-off STT
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -177,34 +297,48 @@ export function ChatInterface() {
       const recognition = new SpeechRecognition();
       recognition.continuous = false; // Listen for a single utterance
       recognition.interimResults = true; // Get interim results as the user speaks
-      recognition.lang = "en-US"; // Set language
+      recognition.lang = "en-US"; // Set language for STT
 
       recognition.onstart = () => {
         setIsListening(true);
-        setRecognitionError(null);
-        console.log("Speech recognition started");
+        // Removed setRecognitionError(null);
+        console.log("[STT onstart]: Speech recognition started.");
       };
 
       recognition.onresult = (event: any) => {
         const interimTranscript = Array.from(event.results)
           .map((result: any) => result[0].transcript)
           .join("");
-        setInputValue(interimTranscript);
+        console.log("[STT onresult]: Interim transcript: ", interimTranscript);
+        setInputValue(interimTranscript); // Update inputValue for display
       };
 
-      recognition.onend = () => {
+      recognition.onend = (event: any) => {
+        // Ensure event parameter is present
         setIsListening(false);
-        console.log("Speech recognition ended");
-        // Only send message if there's actual speech input
-        if (inputValue.trim()) {
-          // Use current inputValue from state
-          handleSendMessage();
+        console.log("[STT onend]: Speech recognition ended.");
+
+        const finalTranscript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join("")
+          .trim();
+
+        console.log(
+          "[STT onend]: Final transcript from event: ",
+          finalTranscript
+        );
+
+        if (finalTranscript) {
+          // For one-off STT, just populate the input field. User will manually send.
+          setInputValue(finalTranscript);
+        } else {
+          console.warn("[STT onend]: No valid transcript detected.");
         }
       };
 
       recognition.onerror = (event: any) => {
         setIsListening(false);
-        console.error("Speech recognition error:", event.error);
+        console.error("[STT onerror]: Speech recognition error:", event.error);
         let errorMessage = "Speech recognition error.";
         if (event.error === "not-allowed") {
           errorMessage =
@@ -214,7 +348,7 @@ export function ChatInterface() {
         } else if (event.error === "audio-capture") {
           errorMessage = "No microphone found or audio capture failed.";
         }
-        setRecognitionError(errorMessage);
+        // Removed setRecognitionError(errorMessage);
         console.error(errorMessage);
       };
 
@@ -223,37 +357,37 @@ export function ChatInterface() {
       return () => {
         if (recognitionRef.current) {
           recognitionRef.current.stop();
+          console.log("[STT Cleanup]: Recognition stopped.");
         }
       };
     } else {
-      setRecognitionError("Speech recognition not supported in this browser.");
+      // Removed setRecognitionError("Speech recognition not supported in this browser.");
       console.warn("SpeechRecognition API not supported in this browser.");
     }
-  }, []);
+  }, []); // Dependencies are empty as it sets up event listeners once.
 
+  // Re-added toggleListening function for the one-off mic button
   const toggleListening = () => {
     if (recognitionRef.current) {
       if (isListening) {
         recognitionRef.current.stop();
       } else {
-        setInputValue("");
-        setRecognitionError(null);
+        setInputValue(""); // Clear input before starting new recognition
+        // Removed setRecognitionError(null);
         recognitionRef.current.start();
       }
     }
   };
   // --- End STT Logic ---
 
-  // NEW: Image Upload Handlers
+  // Image Upload Handlers
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Validate file type (optional)
       if (!file.type.startsWith("image/")) {
         alert("Please upload an image file (e.g., JPG, PNG, GIF).");
         return;
       }
-      // Validate file size (optional, e.g., 5MB limit)
       if (file.size > 5 * 1024 * 1024) {
         alert("Image file size exceeds 5MB limit.");
         return;
@@ -263,102 +397,44 @@ export function ChatInterface() {
       reader.onloadend = () => {
         setSelectedImage({
           base64: reader.result as string,
-          previewUrl: URL.createObjectURL(file), // Create object URL for preview
+          previewUrl: URL.createObjectURL(file),
         });
       };
-      reader.readAsDataURL(file); // Read file as Base64
+      reader.readAsDataURL(file);
     }
   };
 
   const handleImageButtonClick = () => {
-    fileInputRef.current?.click(); // Trigger hidden file input click
+    // isInputAndSendDisabled now considers isListening
+    if (isInputAndSendDisabled || isListening) {
+      // Added isListening here
+      console.log("Image upload disabled when other operations are active.");
+      return;
+    }
+    fileInputRef.current?.click();
   };
 
   const clearSelectedImage = () => {
     if (selectedImage?.previewUrl) {
-      URL.revokeObjectURL(selectedImage.previewUrl); // Clean up object URL
+      URL.revokeObjectURL(selectedImage.previewUrl);
     }
     setSelectedImage(null);
-  };
-
-  const handleSendMessage = async () => {
-    // Allow sending message with only image, or only text, or both
-    if (!inputValue.trim() && !selectedImage) return;
-    if (!sessionId) return;
-
-    const userMessageContent = inputValue;
-    const newUserMessage: Message = {
-      id: Date.now().toString(),
-      content: userMessageContent,
-      role: "user",
-      timestamp: new Date().toISOString(),
-      imageData: selectedImage?.base64, // Include Base64 image data if present
-    };
-
-    setMessages((prev) => [...prev, newUserMessage]);
-    setInputValue("");
-    clearSelectedImage(); // Clear selected image after sending
-    setIsTyping(true);
-
-    try {
-      const response = await fetch(`${BASE_URL}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessageContent,
-          sessionId: sessionId,
-          imageData: newUserMessage.imageData, // Pass imageData to backend
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      const data = await response.json();
-      console.log("Response from /api/chat (AI message):", data);
-
-      const aiMessage = data.aiMessage || data.reply; // Fallback for aiMessage or reply
-
-      if (
-        !aiMessage ||
-        typeof aiMessage.id !== "string" ||
-        typeof aiMessage.content !== "string" ||
-        (aiMessage.role !== "user" && aiMessage.role !== "assistant") ||
-        typeof aiMessage.timestamp !== "string"
-      ) {
-        console.error("Received invalid AI message format:", aiMessage);
-        throw new Error("Invalid AI message format received from backend.");
-      }
-
-      setMessages((prev) => [...prev, aiMessage]);
-    } catch (error: any) {
-      console.error("Error sending message or receiving AI response:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: `Oops! Something went wrong: ${
-          error.message || "Unknown error"
-        }. Please try again.`,
-        role: "assistant",
-        timestamp: new Date().toISOString(),
-        sources: [],
-        isStreaming: false,
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsTyping(false);
-    }
   };
 
   const handleNewChat = () => {
     localStorage.removeItem("chatSessionId");
     setSessionId(null);
     setMessages([]);
+    setInputValue("");
     setIsTyping(false);
-    clearSelectedImage(); // Clear image on new chat
+    clearSelectedImage();
+    // Reset STT states and stop recognition on new chat
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    setIsListening(false);
+    // Removed setRecognitionError(null);
+    setSelectedLanguage("en");
     establishSession();
   };
 
@@ -387,35 +463,70 @@ export function ChatInterface() {
     </motion.div>
   );
 
-  // Determine if we should show the "start screen" welcome message
   const showWelcomeMessage = messages.length === 0 && !isLoadingSession;
 
+  // Determine if Textarea, Send button, and Image button should be disabled
+  // Now includes isListening
+  const isInputAndSendDisabled =
+    isTyping || isLoadingSession || !sessionId || isListening;
+
   return (
-    <div className="flex-1 flex flex-col bg-slate-900/40 backdrop-blur-sm min-h-0 relative">
-      {/* Floating New Chat Button */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="fixed top-4 right-4 z-50"
-      >
-        <Button
-          onClick={handleNewChat}
-          disabled={isLoadingSession}
-          className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-3 shadow-lg flex items-center justify-center"
-          title="Start New Chat"
+    <div className="flex-1 flex flex-col bg-slate-900/40  min-h-0 relative pt-20">
+      {/* Floating Buttons Container */}
+      <div className="fixed top-4 right-4 z-50 flex space-x-3">
+        {/* Language Selector */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="relative"
         >
-          <PlusCircle className="w-5 h-5" />
-          <span className="ml-2 hidden md:inline">New Chat</span>
-        </Button>
-      </motion.div>
+          <select
+            value={selectedLanguage}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
+            disabled={isLoadingSession || isTyping || isListening} // Disabled during active operations
+            className="appearance-none bg-slate-700 hover:bg-slate-600 text-white rounded-full pl-4 pr-10 py-3 shadow-lg cursor-pointer text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "right 0.75rem center",
+              backgroundSize: "1.5em 1.5em",
+            }}
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
+            <Languages className="w-5 h-5" /> {/* Language icon */}
+          </div>
+        </motion.div>
+
+        {/* New Chat Button */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Button
+            onClick={handleNewChat}
+            disabled={isLoadingSession}
+            className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-3 shadow-lg flex items-center justify-center"
+            title="Start New Chat"
+          >
+            <PlusCircle className="w-5 h-5" />
+            <span className="ml-2 hidden md:inline">New Chat</span>
+          </Button>
+        </motion.div>
+      </div>
 
       {/* Main Chat Messages Area */}
       <div
         className="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar"
         aria-live="polite"
       >
-        {/* Conditionally rendered Welcome Message */}
         {showWelcomeMessage && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -432,7 +543,6 @@ export function ChatInterface() {
           </motion.div>
         )}
 
-        {/* Actual Chat Messages (always at the bottom when present) */}
         <div
           className={`max-w-4xl mx-auto ${
             showWelcomeMessage ? "hidden" : "space-y-3 md:space-y-4"
@@ -476,9 +586,8 @@ export function ChatInterface() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      {/* Display image if present in user message */}
                       {message.role === "user" && message.imageData && (
-                        <div className="mb-2 rounded-lg overflow-hidden border border-slate-600">
+                        <div className="mb-3 rounded-lg overflow-hidden border border-slate-600">
                           <img
                             src={message.imageData}
                             alt="Uploaded by user"
@@ -548,8 +657,16 @@ export function ChatInterface() {
             >
               <Card className="max-w-[85%] md:max-w-2xl p-3 md:p-4 bg-slate-800/50 border-slate-600/30">
                 <div className="flex items-center space-x-2 md:space-x-3">
-                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
-                    <Bot className="w-3 h-3 md:w-4 md:h-4 text-white" />
+                  <div
+                    className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-white`}
+                  >
+                    <Image
+                      height={100}
+                      width={100}
+                      src={"/logo.png"}
+                      alt="logo"
+                      className="w-full text-white"
+                    />
                   </div>
                   <StreamingDots />
                 </div>
@@ -563,24 +680,15 @@ export function ChatInterface() {
               chat session...
             </div>
           )}
-
-          {recognitionError && (
-            <div className="flex justify-center items-center text-red-400 py-2 text-sm">
-              <span className="mr-2">⚠️</span> {recognitionError}
-            </div>
-          )}
-
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Input Area - Responsive */}
       <motion.div
-        layout // Enable layout animations
+        layout
         className="p-3 md:p-6 border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-md"
       >
         <div className="max-w-4xl mx-auto">
-          {/* NEW: Image Preview Area (moved here) */}
           {selectedImage && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
@@ -608,7 +716,6 @@ export function ChatInterface() {
 
           <div className="flex space-x-2 md:space-x-4">
             <div className="flex-1 relative">
-              {/* Hidden file input */}
               <input
                 type="file"
                 accept="image/*"
@@ -617,28 +724,25 @@ export function ChatInterface() {
                 style={{ display: "none" }}
               />
 
-              {/* Image Upload Button (inside the Input's container) */}
               <Button
                 size="sm"
                 variant="ghost"
-                className={`absolute left-1 md:left-2 top-1/2 transform -translate-y-1/2 p-1 md:p-2 ${
-                  isLoadingSession || !sessionId || isTyping || isListening
+                className={`absolute left-1 md:left-2 bottom-1 p-1 md:p-2 ${
+                  isInputAndSendDisabled
                     ? "text-slate-600 cursor-not-allowed"
                     : "text-slate-400 hover:text-black"
                 }`}
                 onClick={handleImageButtonClick}
-                disabled={
-                  isLoadingSession || !sessionId || isTyping || isListening
-                }
+                disabled={isInputAndSendDisabled}
                 title="Upload Image"
               >
                 <ImageIcon className="w-4 h-4 md:w-5 md:h-5" />
               </Button>
 
               <Textarea
-                ref={textareaRef} // Assign ref to Textarea
+                ref={textareaRef}
                 placeholder={
-                  isListening
+                  isListening // Placeholder now considers isListening
                     ? "Listening..."
                     : sessionId
                     ? "Ask about satellite data..."
@@ -653,41 +757,34 @@ export function ChatInterface() {
                   }
                 }}
                 rows={1}
-                // Adjusted padding-left and padding-right to make space for buttons
-                // Removed fixed height, added min-h, py-2
-                className="pl-10 pr-10 md:pl-12 md:pr-12 bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-sm md:text-base resize-none overflow-y-hidden min-h-[40px] md:min-h-[auto] py-2"
-                disabled={
-                  isTyping || isLoadingSession || !sessionId || isListening
-                }
+                className="pl-10 pr-10 md:pl-12 md:pr-12 bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-sm md:text-base resize-none overflow-y-hidden min-h-[40px] md:min-h-[auto] py-2" // Adjusted pr
+                disabled={isInputAndSendDisabled}
               />
 
+              {/* Re-added Mic button */}
               <Button
                 size="sm"
                 variant="ghost"
-                className={`absolute right-1 md:right-2 top-1/2 transform -translate-y-1/2 p-1 md:p-2 ${
+                className={`absolute right-1 md:right-2 bottom-1 p-1 md:p-2 ${
                   isListening
-                    ? "text-red-500 animate-pulse"
-                    : "text-slate-400 hover:text-black"
+                    ? "text-red-500 animate-pulse" // Red and pulsing when listening
+                    : "text-slate-400 hover:text-black" // Normal color when not listening
                 }`}
                 onClick={toggleListening}
-                disabled={isLoadingSession || !sessionId || isTyping}
+                disabled={isLoadingSession || !sessionId || isTyping} // isMicButtonDisabled logic
                 title={isListening ? "Stop Listening" : "Start Voice Input"}
               >
                 {isListening ? (
                   <StopCircle className="w-3 h-3 md:w-4 md:h-4" />
                 ) : (
-                  <Mic className="w-3 h-3 md:w-4 md:h-4" />
+                  <Mic className="w-3 h-3 md:w-4 md:h-4 " />
                 )}
               </Button>
             </div>
             <Button
-              onClick={handleSendMessage}
+              onClick={() => handleSendMessage()}
               disabled={
-                (!inputValue.trim() && !selectedImage) || // Disable if no text AND no image
-                isTyping ||
-                isLoadingSession ||
-                !sessionId ||
-                isListening
+                (!inputValue.trim() && !selectedImage) || isInputAndSendDisabled
               }
               className="bg-blue-600 hover:bg-blue-700 text-white h-10 md:h-auto px-3 md:px-4"
             >
