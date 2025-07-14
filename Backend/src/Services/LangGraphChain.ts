@@ -13,7 +13,7 @@ import {
 import { checkpointer } from "./initializeChatService"; // Import checkpointer
 
 import { translateToEnglish, translateToTargetLanguage } from "./translateText";
-import { textToSpeechController } from "../Controllers/textToSpeechController";
+import { convertTextToSpeech } from "../Controllers/textToSpeechController";
 
 const StateAnnotation = Annotation.Root({
   question: Annotation<string>(),
@@ -70,7 +70,6 @@ const StateAnnotation = Annotation.Root({
     default: () => null,
   }),
 });
-
 
 const translateUserInputNode = async (
   state: AgentState
@@ -142,39 +141,13 @@ const generateAudioNode = async (
     console.log(
       "[Graph] Audio mode active: Generating speech from AI response."
     );
-    const mockReq: any = {
-      body: {
-        text: llm_response,
-        target_language_code: targetLanguage,
-        speaker: "anushka",
-      },
-    };
-    const mockRes: any = {
-      json: (data: any) => {
-        mockRes._data = data;
-        return mockRes;
-      },
-      status: (code: number) => {
-        if (code !== 200) {
-          console.error(
-            `Sarvam AI TTS mock response status: ${code}. Data: ${JSON.stringify(
-              mockRes._data
-            )}`
-          );
-        }
-        mockRes._status = code;
-        return mockRes;
-      },
-      send: (data: any) => {
-        mockRes._data = data;
-        return mockRes;
-      },
-      set: () => mockRes,
-    };
-
     try {
-      await textToSpeechController(mockReq, mockRes);
-      const audioData = mockRes._data?.audioData;
+      // Directly call the core TTS conversion function
+      const audioData = await convertTextToSpeech(
+        llm_response,
+        targetLanguage || "en"
+      ); // Provide a default language if targetLanguage is null
+
       if (audioData) {
         console.log("[Graph] Audio data generated successfully.");
         return { audioData: audioData };
@@ -194,8 +167,6 @@ const generateAudioNode = async (
 
 // --- Conditional Routing Functions ---
 
-// The routeQuery function already returns the correct node names (handleSimpleResponse, queryTransformation)
-// The issue is with the keys in the addConditionalEdges map for 'classifyQuery'
 const routeQuery = (state: AgentState): string => {
   const classification = state.llm_response; // llm_response holds the classification
 
@@ -203,7 +174,6 @@ const routeQuery = (state: AgentState): string => {
     `Routing based on classification (returning classification string): "${classification}"`
   );
 
-  // These return values are used as keys in the addConditionalEdges map
   if (classification === "greeting") {
     return "handleSimpleResponse";
   } else if (classification === "other") {
@@ -271,7 +241,6 @@ let workflow = new StateGraph(StateAnnotation)
   .addNode("translateOutput", translateOutputNode)
   .addNode("generateAudio", generateAudioNode);
 
-
 workflow.addConditionalEdges(START, routeAfterStart, {
   translateUserInput: "translateUserInput",
   classifyQuery: "classifyQuery",
@@ -280,8 +249,8 @@ workflow.addConditionalEdges(START, routeAfterStart, {
 workflow.addEdge("translateUserInput", "classifyQuery");
 
 workflow.addConditionalEdges("classifyQuery", routeQuery, {
-  handleSimpleResponse: "handleSimpleResponse", 
-  queryTransformation: "queryTransformation", 
+  handleSimpleResponse: "handleSimpleResponse",
+  queryTransformation: "queryTransformation",
 });
 
 workflow.addConditionalEdges("handleSimpleResponse", routeAfterLLM, {
