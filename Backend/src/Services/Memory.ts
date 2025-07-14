@@ -24,6 +24,9 @@ export interface AgentState {
   rrf_ranked_docs?: Document[];
 
   imageData?: string;
+  targetLanguage?: string;
+  isAudioMode?: boolean; 
+  audioData?: string;
 }
 
 export async function getSessionMemory(
@@ -63,14 +66,20 @@ export async function buildContext(
   if (pineconeContent) {
     context += `Vector Search Results:\n${pineconeContent}\n\n`;
   } else {
-    context += "Vector Search Results: No relevant information found from Pinecone.\n\n";
+    context +=
+      "Vector Search Results: No relevant information found from Pinecone.\n\n";
   }
 
   // Add Neo4j data if available
-  if (state.neo4j_data && state.neo4j_data !== "No relevant semantic nodes found in Neo4j." && !state.neo4j_data.startsWith("Error retrieving semantic relations")) {
+  if (
+    state.neo4j_data &&
+    state.neo4j_data !== "No relevant semantic nodes found in Neo4j." &&
+    !state.neo4j_data.startsWith("Error retrieving semantic relations")
+  ) {
     context += `Knowledge Graph Data:\n${state.neo4j_data}\n\n`;
   } else {
-    context += "Knowledge Graph Data: No relevant information found from Neo4j.\n\n";
+    context +=
+      "Knowledge Graph Data: No relevant information found from Neo4j.\n\n";
   }
 
   console.log("Context built for LLM: \n", context, "\n\n\n\n");

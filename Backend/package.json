@@ -19,6 +19,7 @@
     "@langchain/core": "^0.3.62",
     "@langchain/google-genai": "^0.2.14",
     "@langchain/langgraph": "^0.3.7",
+    "@langchain/langgraph-checkpoint-mongodb": "^0.0.6",
     "@langchain/mongodb": "^0.1.0",
     "@langchain/ollama": "^0.2.3",
     "@langchain/pinecone": "^0.2.0",
