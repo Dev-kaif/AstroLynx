@@ -5,30 +5,28 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
   User,
-  Bot,
-  ExternalLink,
   Loader2,
   PlusCircle,
   Image as ImageIcon,
   XCircle,
-  Languages, // Icon for language selection
-  Mic, // Re-added Mic icon
-  StopCircle, // Re-added StopCircle icon
+  Languages,
+  Mic,
+  StopCircle,
 } from "lucide-react";
-
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Button } from "./ui/button";
-import { Card } from "./ui/card";
-import { Badge } from "./ui/badge";
-import { Input } from "./ui/input";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import Image from "next/image";
-import { Textarea } from "./ui/textarea";
+import { Textarea } from "@/components/ui/textarea";
 
-// Re-added global type declarations for SpeechRecognition
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { AudioModeModal } from "@/components/AudioModeModal";
+
 declare global {
   interface Window {
     SpeechRecognition: any;
+    webkitSpeechRecognition: any;
     SpeechRecognitionEvent: any;
   }
 }
@@ -41,12 +39,11 @@ type Message = {
   sources?: string[];
   isStreaming?: boolean;
   imageData?: string;
-  // audioData?: string; // Still removed
+  audioData?: string;
 };
 
 const BASE_URL = "http://localhost:5000";
 
-// Define supported languages for the dropdown
 const LANGUAGES = [
   { code: "en", name: "English" },
   { code: "es", name: "Español" },
@@ -56,50 +53,158 @@ const LANGUAGES = [
   { code: "de", name: "Deutsch" },
 ];
 
-// Removed ListeningModal component definition
-
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
-  // Re-added isListening state
   const [isListening, setIsListening] = useState(false);
-  // Removed recognitionError state as it was tied to the modal
-  // const [recognitionError, setRecognitionError] = useState<string | null>(null);
-
+  const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
+  const [audioState, setAudioState] = useState<
+    "idle" | "listening" | "processing" | "speaking"
+  >("idle");
   const [selectedImage, setSelectedImage] = useState<{
     base64: string;
     previewUrl: string;
   } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  // Re-added recognitionRef
-  const recognitionRef = useRef<any>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Audio mode states remain removed
-  // const [isAudioModeActive, setIsAudioModeActive] = useState(false);
-  // const [isSpeakingAI, setIsSpeakingAI] = useState(false);
-  // const [aiSpeakingText, setAiSpeakingText] = useState<string>("");
-  // const audioPlayerInstanceRef = useRef<HTMLAudioElement | null>(null);
-  // const [isContinuousAudioModalOpen, setIsContinuousAudioModalOpen] = useState(false);
-
-  // State for selected language, default to English
   const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // In chat-interface.tsx
+
+  // In chat-interface.tsx
+
+  // In chat-interface.tsx
+
+  // In ChatInterface.tsx
+
+  const handleAudioMessage = async (transcript: string) => {
+    console.log(
+      `[ChatInterface] Handling finalized transcript: "${transcript}"`
+    );
+    if (!transcript.trim()) {
+      console.log("[ChatInterface] Transcript was empty, re-listening...");
+      startModalListening(); // If user doesn't speak, just start listening again
+      return;
+    }
+
+    setAudioState("processing");
+    console.log("[ChatInterface] State changed to -> processing");
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content: transcript,
+      role: "user",
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+
+    try {
+      console.log("[ChatInterface] Sending audio transcript to backend...");
+      const response = await fetch(`${BASE_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: transcript,
+          sessionId: sessionId,
+          isAudioMode: true,
+          targetLanguage: selectedLanguage,
+        }),
+      });
+
+      if (!response.ok) throw new Error("API call failed");
+
+      const data = await response.json();
+      const aiMessage: Message = data.aiMessage;
+
+      console.log("[ChatInterface] Received response from backend.", data);
+      setMessages((prev) => [...prev, aiMessage]);
+
+      if (aiMessage && aiMessage.audioData && aiMessage.audioData.length > 50) {
+        setAudioState("speaking");
+        console.log("[ChatInterface] State changed to -> speaking");
+
+        const audioPlayer = new Audio(
+          `data:audio/mp3;base64,${aiMessage.audioData}`
+        );
+
+        // --- THIS IS THE KEY CHANGE ---
+        // When the AI finishes speaking, start the next listening cycle automatically.
+        audioPlayer.onended = () => {
+          console.log(
+            "[ChatInterface] Audio playback finished. Looping back to listening state."
+          );
+          startModalListening();
+        };
+
+        audioPlayer.onerror = (e) => {
+          console.error("[ChatInterface] Error during audio playback:", e);
+          // On error, we should probably close to prevent getting stuck in a loop
+          closeAudioModal();
+        };
+
+        console.log("[ChatInterface] Attempting to play audio...");
+        audioPlayer.play().catch((error) => {
+          console.error(
+            "[ChatInterface] Audio autoplay was prevented by the browser:",
+            error
+          );
+          closeAudioModal();
+        });
+      } else {
+        // If there's no audio data, immediately loop back to listening for the user's next turn.
+        console.log(
+          "[ChatInterface] No audio data in response, looping back to listening."
+        );
+        startModalListening();
+      }
+    } catch (error) {
+      console.error(
+        "[ChatInterface] Error during audio message handling:",
+        error
+      );
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "Sorry, an error occurred. Please try again.",
+        role: "assistant",
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      // Close the modal on a critical error
+      closeAudioModal();
+    }
   };
 
-  // Auto-resize textarea logic
+  const {
+    isListening: isModalListening,
+    transcript: modalTranscript,
+    startListening: startModalListening,
+    stopListening: stopModalListening,
+  } = useAudioRecorder(handleAudioMessage);
+  useEffect(() => {
+    if (isModalListening) setAudioState("listening");
+  }, [isModalListening]);
+  const openAudioModal = () => {
+    setIsAudioModalOpen(true);
+    startModalListening();
+  };
+  const closeAudioModal = () => {
+    stopModalListening();
+    setIsAudioModalOpen(false);
+    setAudioState("idle");
+  };
+
+  const scrollToBottom = () =>
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height =
-        textareaRef.current.scrollHeight + "px";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [inputValue, selectedImage]);
 
@@ -108,86 +213,37 @@ export function ChatInterface() {
       const response = await fetch(
         `${BASE_URL}/api/session/history/${currentSessionId}`
       );
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
-      }
       const data = await response.json();
-      console.log("Response from /api/session/history:", data);
-
-      if (
-        data.history &&
-        Array.isArray(data.history) &&
-        data.history.length > 0
-      ) {
-        const validHistory: Message[] = data.history.filter(
-          (msg: any) =>
-            msg &&
-            typeof msg.id === "string" &&
-            typeof msg.content === "string" &&
-            (msg.role === "user" || msg.role === "assistant") &&
-            typeof msg.timestamp === "string"
+      if (data.history?.length)
+        setMessages(
+          data.history.filter(
+            (msg: any) =>
+              msg && msg.id && msg.content && msg.role && msg.timestamp
+          )
         );
-        setMessages(validHistory);
-      } else {
-        setMessages([]);
-      }
+      else setMessages([]);
     } catch (error) {
       console.error("Error fetching chat history:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: "error-history",
-          content:
-            "Failed to load chat history. You can still send new messages.",
-          role: "assistant",
-          timestamp: new Date().toISOString(),
-          sources: [],
-        },
-      ]);
     }
   }, []);
 
   const establishSession = useCallback(async () => {
     setIsLoadingSession(true);
     let currentSessionId = localStorage.getItem("chatSessionId");
-
     if (currentSessionId) {
-      console.log(
-        "Found existing session ID in localStorage:",
-        currentSessionId
-      );
       setSessionId(currentSessionId);
       await fetchChatHistory(currentSessionId);
     } else {
-      setMessages([]);
-      console.log(
-        "No session ID found. Requesting new session from backend..."
-      );
-
       try {
         const response = await fetch(`${BASE_URL}/api/session`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
         const data = await response.json();
-        console.log("Response from /api/session (new session):", data);
         currentSessionId = data.sessionId;
         localStorage.setItem("chatSessionId", currentSessionId!);
         setSessionId(currentSessionId);
-        console.log("New session ID established and saved:", currentSessionId);
       } catch (error) {
         console.error("Error establishing new session:", error);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: "error-session-init",
-            content:
-              "Failed to start a new chat session. Please try refreshing the page.",
-            role: "assistant",
-            timestamp: new Date().toISOString(),
-            sources: [],
-          },
-        ]);
       }
     }
     setIsLoadingSession(false);
@@ -196,89 +252,57 @@ export function ChatInterface() {
   useEffect(() => {
     establishSession();
   }, [establishSession]);
-
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Removed playSound function
-  // Removed playAiResponse function
-  // Removed toggleListeningForContinuousMode function
-
-  // handleSendMessage now accepts an optional messageContent parameter (kept for flexibility)
   const handleSendMessage = useCallback(
     async (messageContentOverride?: string) => {
-      // If an override is provided (from STT), use it; otherwise, use the current inputValue state.
       const messageToSend =
         messageContentOverride !== undefined
           ? messageContentOverride
           : inputValue;
-
       if (!messageToSend.trim() && !selectedImage) return;
       if (!sessionId) return;
-
-      const userMessageContent = messageToSend;
-
       const newUserMessage: Message = {
         id: Date.now().toString(),
-        content: userMessageContent,
+        content: messageToSend,
         role: "user",
         timestamp: new Date().toISOString(),
         imageData: selectedImage?.base64,
       };
-
       setMessages((prev) => [...prev, newUserMessage]);
       setInputValue("");
       clearSelectedImage();
       setIsTyping(true);
-
       try {
         const response = await fetch(`${BASE_URL}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            message: userMessageContent,
-            sessionId: sessionId,
+            message: messageToSend,
+            sessionId,
             imageData: newUserMessage.imageData,
             targetLanguage: selectedLanguage,
           }),
         });
-
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.error || `HTTP error! status: ${response.status}`
           );
         }
-
         const data = await response.json();
-        console.log("Response from /api/chat (AI message):", data);
-
-        const aiMessage: Message = data.aiMessage || data.reply;
-
-        if (
-          !aiMessage ||
-          typeof aiMessage.id !== "string" ||
-          typeof aiMessage.content !== "string" ||
-          (aiMessage.role !== "user" && aiMessage.role !== "assistant") ||
-          typeof aiMessage.timestamp !== "string"
-        ) {
-          console.error("Received invalid AI message format:", aiMessage);
-          throw new Error("Invalid AI message format received from backend.");
-        }
-
+        const aiMessage: Message = data.aiMessage;
         setMessages((prev) => [...prev, aiMessage]);
       } catch (error: any) {
-        console.error("Error sending message or receiving AI response:", error);
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           content: `Oops! Something went wrong: ${
             error.message || "Unknown error"
-          }. Please try again.`,
+          }.`,
           role: "assistant",
           timestamp: new Date().toISOString(),
-          sources: [],
-          isStreaming: false,
         };
         setMessages((prev) => [...prev, errorMessage]);
       } finally {
@@ -288,136 +312,63 @@ export function ChatInterface() {
     [sessionId, selectedImage, inputValue, selectedLanguage]
   );
 
-  // Re-added Speech-to-Text (STT) Logic useEffect for one-off STT
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false; // Listen for a single utterance
-      recognition.interimResults = true; // Get interim results as the user speaks
-      recognition.lang = "en-US"; // Set language for STT
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        // Removed setRecognitionError(null);
-        console.log("[STT onstart]: Speech recognition started.");
-      };
-
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      recognition.onstart = () => setIsListening(true);
       recognition.onresult = (event: any) => {
         const interimTranscript = Array.from(event.results)
           .map((result: any) => result[0].transcript)
           .join("");
-        console.log("[STT onresult]: Interim transcript: ", interimTranscript);
-        setInputValue(interimTranscript); // Update inputValue for display
+        setInputValue(interimTranscript);
       };
-
-      recognition.onend = (event: any) => {
-        // Ensure event parameter is present
-        setIsListening(false);
-        console.log("[STT onend]: Speech recognition ended.");
-
-        const finalTranscript = Array.from(event.results)
-          .map((result: any) => result[0].transcript)
-          .join("")
-          .trim();
-
-        console.log(
-          "[STT onend]: Final transcript from event: ",
-          finalTranscript
-        );
-
-        if (finalTranscript) {
-          // For one-off STT, just populate the input field. User will manually send.
-          setInputValue(finalTranscript);
-        } else {
-          console.warn("[STT onend]: No valid transcript detected.");
-        }
-      };
-
+      recognition.onend = () => setIsListening(false);
       recognition.onerror = (event: any) => {
         setIsListening(false);
-        console.error("[STT onerror]: Speech recognition error:", event.error);
-        let errorMessage = "Speech recognition error.";
-        if (event.error === "not-allowed") {
-          errorMessage =
-            "Microphone permission denied. Please allow access in your browser settings.";
-        } else if (event.error === "no-speech") {
-          errorMessage = "No speech detected. Please try again.";
-        } else if (event.error === "audio-capture") {
-          errorMessage = "No microphone found or audio capture failed.";
-        }
-        // Removed setRecognitionError(errorMessage);
-        console.error(errorMessage);
+        console.error("[STT onerror]:", event.error);
       };
-
       recognitionRef.current = recognition;
-
       return () => {
-        if (recognitionRef.current) {
-          recognitionRef.current.stop();
-          console.log("[STT Cleanup]: Recognition stopped.");
-        }
+        if (recognitionRef.current) recognitionRef.current.stop();
       };
-    } else {
-      // Removed setRecognitionError("Speech recognition not supported in this browser.");
-      console.warn("SpeechRecognition API not supported in this browser.");
     }
-  }, []); // Dependencies are empty as it sets up event listeners once.
+  }, []);
 
-  // Re-added toggleListening function for the one-off mic button
   const toggleListening = () => {
     if (recognitionRef.current) {
-      if (isListening) {
-        recognitionRef.current.stop();
-      } else {
-        setInputValue(""); // Clear input before starting new recognition
-        // Removed setRecognitionError(null);
+      if (isListening) recognitionRef.current.stop();
+      else {
+        setInputValue("");
         recognitionRef.current.start();
       }
     }
   };
-  // --- End STT Logic ---
 
-  // Image Upload Handlers
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        alert("Please upload an image file (e.g., JPG, PNG, GIF).");
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image file size exceeds 5MB limit.");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage({
-          base64: reader.result as string,
-          previewUrl: URL.createObjectURL(file),
-        });
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () =>
+      setSelectedImage({
+        base64: reader.result as string,
+        previewUrl: URL.createObjectURL(file),
+      });
+    reader.readAsDataURL(file);
   };
 
   const handleImageButtonClick = () => {
-    // isInputAndSendDisabled now considers isListening
-    if (isInputAndSendDisabled || isListening) {
-      // Added isListening here
-      console.log("Image upload disabled when other operations are active.");
-      return;
-    }
+    if (isInputAndSendDisabled || isListening) return;
     fileInputRef.current?.click();
   };
 
   const clearSelectedImage = () => {
-    if (selectedImage?.previewUrl) {
+    if (selectedImage?.previewUrl)
       URL.revokeObjectURL(selectedImage.previewUrl);
-    }
     setSelectedImage(null);
   };
 
@@ -428,53 +379,33 @@ export function ChatInterface() {
     setInputValue("");
     setIsTyping(false);
     clearSelectedImage();
-    // Reset STT states and stop recognition on new chat
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
+    if (recognitionRef.current) recognitionRef.current.stop();
     setIsListening(false);
-    // Removed setRecognitionError(null);
     setSelectedLanguage("en");
     establishSession();
   };
 
   const StreamingDots = () => (
-    <motion.div
-      className="flex space-x-1"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
+    <motion.div className="flex space-x-1">
       {[0, 1, 2].map((i) => (
         <motion.div
           key={i}
           className="w-2 h-2 bg-blue-400 rounded-full"
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.5, 1, 0.5],
-          }}
-          transition={{
-            duration: 1,
-            repeat: Number.POSITIVE_INFINITY,
-            delay: i * 0.2,
-          }}
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
         />
       ))}
     </motion.div>
   );
 
   const showWelcomeMessage = messages.length === 0 && !isLoadingSession;
-
-  // Determine if Textarea, Send button, and Image button should be disabled
-  // Now includes isListening
   const isInputAndSendDisabled =
     isTyping || isLoadingSession || !sessionId || isListening;
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-900/40  min-h-0 relative pt-20">
-      {/* Floating Buttons Container */}
+    <div className="flex-1 flex flex-col bg-slate-900/40 min-h-0 relative pt-20">
+      {/* --- BUTTONS RESTORED --- */}
       <div className="fixed top-4 right-4 z-50 flex space-x-3">
-        {/* Language Selector */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -484,7 +415,7 @@ export function ChatInterface() {
           <select
             value={selectedLanguage}
             onChange={(e) => setSelectedLanguage(e.target.value)}
-            disabled={isLoadingSession || isTyping || isListening} // Disabled during active operations
+            disabled={isInputAndSendDisabled}
             className="appearance-none bg-slate-700 hover:bg-slate-600 text-white rounded-full pl-4 pr-10 py-3 shadow-lg cursor-pointer text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
             style={{
               backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
@@ -500,11 +431,9 @@ export function ChatInterface() {
             ))}
           </select>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
-            <Languages className="w-5 h-5" /> {/* Language icon */}
+            <Languages className="w-5 h-5" />
           </div>
         </motion.div>
-
-        {/* New Chat Button */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -522,7 +451,6 @@ export function ChatInterface() {
         </motion.div>
       </div>
 
-      {/* Main Chat Messages Area */}
       <div
         className="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar"
         aria-live="polite"
@@ -542,7 +470,6 @@ export function ChatInterface() {
             </p>
           </motion.div>
         )}
-
         <div
           className={`max-w-4xl mx-auto ${
             showWelcomeMessage ? "hidden" : "space-y-3 md:space-y-4"
@@ -563,9 +490,9 @@ export function ChatInterface() {
                 <Card
                   className={`max-w-[85%] md:max-w-[80%] p-3 md:p-4 ${
                     message.role === "user"
-                      ? "bg-blue-700/20 border-blue-600/30 text-white"
-                      : "bg-slate-800/50 border-slate-600/30 text-white"
-                  }`}
+                      ? "bg-blue-700/20 border-blue-600/30"
+                      : "bg-slate-800/50 border-slate-600/30"
+                  } text-white`}
                 >
                   <div className="flex items-start space-x-2 md:space-x-3">
                     <div
@@ -581,7 +508,7 @@ export function ChatInterface() {
                           width={100}
                           src={"/logo.png"}
                           alt="logo"
-                          className="w-full text-white"
+                          className="w-full"
                         />
                       )}
                     </div>
@@ -596,40 +523,11 @@ export function ChatInterface() {
                           />
                         </div>
                       )}
-
-                      {message.role === "assistant" ? (
-                        <div className="leading-relaxed text-sm md:text-base break-words markdown-content prose prose-invert prose-sm md:prose-base max-w-none">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {message.content}
-                          </ReactMarkdown>
-                        </div>
-                      ) : (
-                        <p className="leading-relaxed text-sm md:text-base break-words">
+                      <div className="leading-relaxed text-sm md:text-base break-words markdown-content prose prose-invert prose-sm md:prose-base max-w-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {message.content}
-                        </p>
-                      )}
-
-                      {message.isStreaming && (
-                        <div className="mt-2">
-                          <StreamingDots />
-                        </div>
-                      )}
-                      {message.sources && message.sources.length > 0 && (
-                        <div className="mt-2 md:mt-3 flex flex-wrap gap-1 md:gap-2">
-                          {message.sources.map((source, index) => (
-                            <Badge
-                              key={index}
-                              variant="secondary"
-                              className="text-xs bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 cursor-pointer"
-                            >
-                              <ExternalLink className="w-2 h-2 md:w-3 md:h-3 mr-1" />
-                              <span className="truncate max-w-[100px] md:max-w-none">
-                                {source}
-                              </span>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
+                        </ReactMarkdown>
+                      </div>
                       <div
                         className={`text-xs mt-1 ${
                           message.role === "user"
@@ -648,7 +546,6 @@ export function ChatInterface() {
               </motion.div>
             ))}
           </AnimatePresence>
-
           {isTyping && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -665,7 +562,7 @@ export function ChatInterface() {
                       width={100}
                       src={"/logo.png"}
                       alt="logo"
-                      className="w-full text-white"
+                      className="w-full"
                     />
                   </div>
                   <StreamingDots />
@@ -673,7 +570,6 @@ export function ChatInterface() {
               </Card>
             </motion.div>
           )}
-
           {isLoadingSession && messages.length === 0 && (
             <div className="flex justify-center items-center text-slate-400 py-4">
               <Loader2 className="h-5 w-5 animate-spin mr-2" /> Initializing
@@ -713,8 +609,7 @@ export function ChatInterface() {
               </Button>
             </motion.div>
           )}
-
-          <div className="flex space-x-2 md:space-x-4">
+          <div className="flex items-end space-x-2 md:space-x-4">
             <div className="flex-1 relative">
               <input
                 type="file"
@@ -723,14 +618,13 @@ export function ChatInterface() {
                 onChange={handleFileChange}
                 style={{ display: "none" }}
               />
-
               <Button
                 size="sm"
                 variant="ghost"
                 className={`absolute left-1 md:left-2 bottom-1 p-1 md:p-2 ${
                   isInputAndSendDisabled
                     ? "text-slate-600 cursor-not-allowed"
-                    : "text-slate-400 hover:text-black"
+                    : "text-slate-400"
                 }`}
                 onClick={handleImageButtonClick}
                 disabled={isInputAndSendDisabled}
@@ -738,15 +632,10 @@ export function ChatInterface() {
               >
                 <ImageIcon className="w-4 h-4 md:w-5 md:h-5" />
               </Button>
-
               <Textarea
                 ref={textareaRef}
                 placeholder={
-                  isListening // Placeholder now considers isListening
-                    ? "Listening..."
-                    : sessionId
-                    ? "Ask about satellite data..."
-                    : "Initializing chat..."
+                  isListening ? "Listening..." : "Ask about satellite data..."
                 }
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -757,42 +646,54 @@ export function ChatInterface() {
                   }
                 }}
                 rows={1}
-                className="pl-10 pr-10 md:pl-12 md:pr-12 bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-sm md:text-base resize-none overflow-y-hidden min-h-[40px] md:min-h-[auto] py-2" // Adjusted pr
+                className="pl-10 pr-10 md:pl-12 md:pr-12 bg-slate-800/50 border-slate-600 text-white"
                 disabled={isInputAndSendDisabled}
               />
-
-              {/* Re-added Mic button */}
               <Button
                 size="sm"
                 variant="ghost"
                 className={`absolute right-1 md:right-2 bottom-1 p-1 md:p-2 ${
-                  isListening
-                    ? "text-red-500 animate-pulse" // Red and pulsing when listening
-                    : "text-slate-400 hover:text-black" // Normal color when not listening
+                  isListening ? "text-red-500 animate-pulse" : "text-slate-400"
                 }`}
                 onClick={toggleListening}
-                disabled={isLoadingSession || !sessionId || isTyping} // isMicButtonDisabled logic
+                disabled={isLoadingSession || !sessionId || isTyping}
                 title={isListening ? "Stop Listening" : "Start Voice Input"}
               >
                 {isListening ? (
-                  <StopCircle className="w-3 h-3 md:w-4 md:h-4" />
+                  <StopCircle className="w-5 h-5" />
                 ) : (
-                  <Mic className="w-3 h-3 md:w-4 md:h-4 " />
+                  <Mic className="w-5 h-5" />
                 )}
               </Button>
             </div>
+            <Button
+              onClick={openAudioModal}
+              disabled={isInputAndSendDisabled}
+              className="bg-green-600 hover:bg-green-700 text-white h-full px-3 md:px-4"
+              title="Start Voice Chat"
+            >
+              <span>Audio Mode</span>
+              <Mic className="w-4 h-4" />
+            </Button>
             <Button
               onClick={() => handleSendMessage()}
               disabled={
                 (!inputValue.trim() && !selectedImage) || isInputAndSendDisabled
               }
-              className="bg-blue-600 hover:bg-blue-700 text-white h-10 md:h-auto px-3 md:px-4"
+              className="bg-blue-600 hover:bg-blue-700 text-white h-full px-3 md:px-4"
             >
-              <Send className="w-3 h-3 md:w-4 md:h-4" />
+              <Send className="w-4 h-4" />
             </Button>
           </div>
         </div>
       </motion.div>
+
+      <AudioModeModal
+        isOpen={isAudioModalOpen}
+        onClose={closeAudioModal}
+        audioState={audioState}
+        transcript={modalTranscript}
+      />
     </div>
   );
 }
