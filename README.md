@@ -1,137 +1,154 @@
-# AstroLynx: MOSDAC AI Assistant
+# 🚀 AstroLynx: MOSDAC AI Assistant
 
-AstroLynx is an intelligent AI assistant focused on **MOSDAC**, satellite data, Earth observation, and space missions. It combines a powerful RAG pipeline, knowledge graph, multi-language support, and real-time audio for an engaging, productive assistant experience.
-
----
-
-## 🚀 Key Features
-
-* **Intelligent Q\&A:** Answers your questions from a rich, curated knowledge base.
-* **Retrieval-Augmented Generation (RAG):** Combines vector search (Pinecone) with knowledge graph (Neo4j).
-
-  * **HyDE:** Generates hypothetical documents for better retrieval coverage.
-  * **Parallel Query Translation (Fan-out):** Runs multiple retrieval paths in parallel.
-  * **Reciprocal Rank Fusion (RRF):** Merges results for the best relevance.
-* **Neo4j Knowledge Graph:** Understands and reasons about complex relationships.
-* **Multi-language Support:** Automatically translates user input to English, processes it, and returns AI responses in the user's language (including Hinglish).
-* **Logical Routing for Efficiency:** Detects greetings, MOSDAC-specific queries, and general queries, skipping unnecessary RAG/database calls to save compute and time.
-* **Audio Chat Interface:**
-
-  * **Voice Activity Detection (VAD):** Starts listening when you speak.
-  * **Text-to-Speech (TTS):** Plays AI responses back using Sarvam AI.
-  * *(Future: Speech-to-Text (STT) for voice input.)*
-* **Chat History:** Stores conversations in MongoDB for continuity.
-* **LangGraph Orchestration:** Manages the AI workflow, routing between retrieval, graph, and generation steps efficiently.
+AstroLynx is an intelligent, conversational AI assistant for **MOSDAC** (Meteorological and Oceanographic Satellite Data Archival Centre). It leverages a state-of-the-art RAG pipeline, a knowledge graph, and a real-time, continuous voice chat interface to provide an engaging and powerful user experience.
 
 ---
 
-## 🛠 Technologies Used
+## ✨ Key Features
+
+- **Advanced RAG Pipeline:** Delivers accurate, context-aware answers by combining multiple retrieval strategies:
+  - **Hybrid Search:** Fuses results from vector search (**Pinecone**) and a knowledge graph (**Neo4j**).
+  - **Query Transformation:** Rewrites user questions and generates hypothetical documents (**HyDE**) to retrieve the most relevant information.
+  - **Intelligent Re-Ranking:** Uses Reciprocal Rank Fusion (**RRF**) to merge and rank results from parallel searches for optimal relevance.
+- **Speech-to-Speech (STS) Interface:** Enables hands-free, continuous conversation.
+  - **Voice-Activated:** Automatically detects when you stop speaking to process your query.
+  - **Real-time STT/TTS:** Transcribes your voice to text, gets a response, and plays it back as audio using **Sarvam AI**.
+- **Multi-Language Support:** Seamlessly converse in multiple languages, including English, Hindi, and Hinglish. AstroLynx automatically translates, processes, and responds in your chosen language.
+- **Efficient & Logical Routing:** Saves time and compute by intelligently classifying queries. It handles simple greetings and general questions directly, engaging the complex RAG pipeline only for MOSDAC-related topics.
+- **Persistent Conversations:** Uses **MongoDB** to store chat history, allowing you to pick up conversations right where you left off.
+- **LangGraph Orchestration:** The entire AI workflow is managed by **LangGraph**, ensuring a robust and logical flow between retrieval, generation, and other services.
+
+---
+
+## 🛠️ Tech Stack
 
 **Frontend:**
 
-* React with Next.js
-* Tailwind CSS
-* Framer Motion
-* Lucide React
-* `axios`
+- React & Next.js
+- TypeScript
+- Tailwind CSS
+- Framer Motion for animations
+- Lucide React for icons
 
 **Backend:**
 
-* Node.js with Express
-* LangChain.js with:
+- Node.js with Express
+- **LangChain.js** for AI orchestration, featuring:
+  - **LangGraph** for building stateful, multi-agent applications.
+  - **Google Generative AI** (Gemini) for language models.
+  - **Ollama** for running local embedding models (`nomic-embed-text`).
+  - **Pinecone** for vector storage and search.
+  - **Neo4j** for knowledge graph storage and queries.
+  - **MongoDB** for chat history and session management.
+- **Sarvam AI** for high-quality Text-to-Speech (TTS).
 
-  * Google Generative AI
-  * Pinecone
-  * Ollama for embeddings (optional, local)
-  * MongoDB
-  * LangGraph
-  * Neo4j Graph
-* Sarvam AI TTS API
-* `dotenv` for environment management
+**Deployment & Tooling:**
 
-**Containerization:**
-
-* **Docker** (recommended for Ollama and local LLM hosting)
-
----
-
-## ⚡ Setup Prerequisites
-
-* Node.js (v18+)
-* MongoDB Atlas or local MongoDB
-* Pinecone account
-* Neo4j AuraDB or local Neo4j
-* Google Cloud Project with Gemini API enabled
-* Sarvam AI API key
-* (Optional) Ollama + Docker for local embeddings
+- **Docker** for containerizing services like Ollama.
+- `dotenv` for managing environment variables.
+- `pnpm` for frontend package management.
 
 ---
 
-## 🪐 Setup Steps
+## ⚡ Prerequisites
 
-### 1️⃣ Environment Variables
+- Node.js (v18 or newer)
+- A MongoDB Atlas cluster or a local MongoDB instance.
+- A Pinecone account and API key.
+- A Neo4j AuraDB instance or local installation.
+- A Google Cloud Project with the Gemini API enabled.
+- A Sarvam AI API key.
+- **Docker** (required for running Ollama).
 
-Create a `.env` file in your `Backend` directory with:
+---
 
-```
-GEMINI_API_KEY=your_gemini_key
-PINECONE_API_KEY=your_pinecone_key
-MONGO_URI=your_mongo_uri
-NEO4J_URI=your_neo4j_uri
-SARVAM_API_KEY=your_sarvam_key
-OLLAMA_BASE_URL=http://localhost:11434 (optional)
-```
+## 🪐 Setup & Installation
 
-### 2️⃣ Backend Setup
+### 1️⃣ Clone the Repository
 
 ```bash
+git clone https://github.com/Dev-kaif/AstroLynx.git
+cd AstroLynx
+```
+
+### 2️⃣ Configure Environment Variables
+
+Create a `.env` file in the `Backend` directory and populate it with your credentials:
+
+```env
+# Google Gemini API Key
+GEMINI_API_KEY="your_gemini_api_key"
+
+# Pinecone Credentials
+PINECONE_API_KEY="your_pinecone_api_key"
+
+# MongoDB Connection URI
+MONGO_URI="your_mongodb_connection_string"
+
+# Neo4j Credentials
+NEO4J_URI="your_neo4j_bolt_uri"
+NEO4J_USERNAME="neo4j"
+NEO4J_PASSWORD="your_neo4j_password"
+
+# Sarvam AI API Key
+SARVAM_AI_API_KEY="your_sarvam_api_key"
+
+# Ollama URL (if running locally)
+OLLAMA_BASE_URL="http://localhost:11434"
+```
+
+### 3️⃣ Set Up the Backend
+
+```bash
+# Navigate to the backend directory
 cd Backend
+
+# Install dependencies
 npm install
+
+# (Required) Start Ollama and pull the embedding model
+docker run -d --rm -p 11434:11434 --name ollama ollama/ollama
+docker exec ollama ollama pull nomic-embed-text
+
+# Run the backend server
 npm run dev
 ```
 
-*If using Ollama, ensure it is running and the `nomic-embed-text` model is pulled.*
+The backend server will start on its configured port (e.g., 5000).
 
-### 3️⃣ Frontend Setup
+### 4️⃣ Set Up the Frontend
 
 ```bash
+# Navigate to the frontend directory from the root
 cd Frontend
+
+# Install dependencies
 pnpm install
-npm run dev
+
+# Run the development server
+pnpm dev
 ```
 
----
-
-## 🛰 Usage
-
-1. Start backend and frontend servers.
-2. Open your browser and navigate to:
-
-   ```
-   http://localhost:3000
-   ```
-3. Start chatting with AstroLynx.
+The frontend will be available at `http://localhost:3000`.
 
 ---
 
-## ⚠️ Important Notes
+## 🛰️ Future Enhancements
 
-* **Security:** Do not commit `.env` files or API keys to your repository. Use `.gitignore` to keep them out of version control.
-* **Future Enhancements:**
-
-  * Re-enable Speech-to-Text (STT) for voice input.
-  * Add speaker selection and TTS parameter customization.
-  * Streaming responses for Gemini/LLM.
-  * More domain datasets for Earth observation and satellite-specific queries.
-  * User authentication and persistent chat sessions across devices.
-  * UI/UX enhancements for mobile and tablet support.
+- **Integrate a Dedicated VAD:** Implement a client-side Voice Activity Detection library for more precise and responsive turn-taking in audio conversations.
+- **Streaming Responses:** Stream text from the LLM word-by-word for a more immediate response.
+- **Advanced Audio Controls:** Add options for speaker selection and TTS parameter customization.
+- **User Authentication:** Implement user accounts for persistent chat history across devices.
+- **Expanded Knowledge Base:** Ingest more domain-specific datasets for even greater expertise.
 
 ---
 
 ## ❤️ Contributing
 
-If you’d like to improve AstroLynx:
+Contributions are welcome\! If you'd like to improve AstroLynx:
 
-* Fork this repository
-* Create a feature branch
-* Open a pull request with clear, descriptive commits
+1.  Fork the repository.
+2.  Create a new feature branch (`git checkout -b feature/your-feature-name`).
+3.  Commit your changes with clear, descriptive messages.
+4.  Push to the branch (`git push origin feature/your-feature-name`).
+5.  Open a Pull Request.

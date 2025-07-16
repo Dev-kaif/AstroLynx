@@ -7,6 +7,12 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import dotenv from "dotenv";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+import {
+  GEMINI_API_KEY,
+  NEO4J_PASSWORD,
+  NEO4J_URI,
+  NEO4J_USERNAME,
+} from "./utils/Config";
 dotenv.config();
 
 const pdfFolder = path.resolve(__dirname, "../mosac-data");
@@ -15,8 +21,8 @@ async function pipeline(pdfDir: string) {
   console.log(`📂 PDF folder: ${pdfDir}`);
   const allFiles = await fs.readdir(pdfDir);
   const pdfFiles = allFiles
-    .filter(f => f.toLowerCase().endsWith(".pdf"))
-    .map(f => path.join(pdfDir, f));
+    .filter((f) => f.toLowerCase().endsWith(".pdf"))
+    .map((f) => path.join(pdfDir, f));
   console.log("🔍 PDF files:", pdfFiles);
 
   if (!pdfFiles.length) {
@@ -30,7 +36,7 @@ async function pipeline(pdfDir: string) {
   });
 
   const chat = new ChatGoogleGenerativeAI({
-    apiKey: "AIzaSyAgK1DwloZKt8JH3BTLTfw1FvkIk7sXVUs",
+    apiKey: GEMINI_API_KEY,
     model: "gemini-2.5-flash",
     temperature: 0.7,
   });
@@ -46,13 +52,13 @@ async function pipeline(pdfDir: string) {
   });
 
   const graph = await Neo4jGraph.initialize({
-    url: "neo4j+s://9693fc77.databases.neo4j.io",
-    username: "neo4j",
-    password: "bUsMD23JcIcG5RFEcl37nzPdxcH3UCJjJsp4OYT1WuM",
+    url: NEO4J_URI,
+    username: NEO4J_USERNAME,
+    password: NEO4J_PASSWORD,
   });
   console.log("✅ Connected to Neo4j");
 
-  const BATCH_SIZE = 50; // adjust based on limits
+  const BATCH_SIZE = 50;
 
   for (const pdfPath of pdfFiles) {
     console.log(`\n➡️ Processing: ${pdfPath}`);
@@ -64,7 +70,11 @@ async function pipeline(pdfDir: string) {
 
     for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
       const batch = chunks.slice(i, i + BATCH_SIZE);
-      console.log(`🚀 Processing batch ${i / BATCH_SIZE + 1}/${Math.ceil(chunks.length / BATCH_SIZE)}`);
+      console.log(
+        `🚀 Processing batch ${i / BATCH_SIZE + 1}/${Math.ceil(
+          chunks.length / BATCH_SIZE
+        )}`
+      );
 
       try {
         const graphDocs = await transformer.convertToGraphDocuments(batch);
@@ -72,7 +82,11 @@ async function pipeline(pdfDir: string) {
 
         for (const doc of graphDocs) {
           for (const node of doc.nodes) {
-            const text = node.properties?.name || node.properties?.title || node.properties?.content || "";
+            const text =
+              node.properties?.name ||
+              node.properties?.title ||
+              node.properties?.content ||
+              "";
             const embedding = await embeddings.embedQuery(text);
             node.properties.embedding = embedding;
           }
@@ -85,7 +99,7 @@ async function pipeline(pdfDir: string) {
       }
 
       // Optional: Rate limiting sleep between batches
-      await new Promise(res => setTimeout(res, 2000)); // 2 seconds between batches
+      await new Promise((res) => setTimeout(res, 2000)); // 2 seconds between batches
     }
   }
 
@@ -93,7 +107,7 @@ async function pipeline(pdfDir: string) {
   console.log("🎉 Pipeline completed.");
 }
 
-pipeline(pdfFolder).catch(err => {
+pipeline(pdfFolder).catch((err) => {
   console.error("❌ Pipeline error:", err);
   process.exit(1);
 });
