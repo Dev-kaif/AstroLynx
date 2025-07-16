@@ -13,7 +13,7 @@ import {
 import { checkpointer } from "./initializeChatService"; // Import checkpointer
 
 import { translateToEnglish, translateToTargetLanguage } from "./translateText";
-import { convertTextToSpeech } from "../Controllers/textToSpeechController";
+import { convertTextToSpeech } from "./textToSpeech";
 
 const StateAnnotation = Annotation.Root({
   question: Annotation<string>(),

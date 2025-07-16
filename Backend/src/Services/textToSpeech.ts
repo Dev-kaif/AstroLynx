@@ -25,7 +25,7 @@ const SARVAM_LANGUAGE_MAP: { [key: string]: string } = {
 export async function convertTextToSpeech(
   text: string,
   targetLanguage: string,
-  speaker: string = "anushka" // Default speaker
+  speaker: string = "vidya" // Default speaker
 ): Promise<string | null> {
   if (!SARVAM_AI_API_KEY) {
     console.error("[TTS Core] Sarvam AI API key is not configured.");
