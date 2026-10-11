@@ -1,13 +1,6 @@
 // src/hooks/useAudioRecorder.tsx
 import { useState, useRef, useEffect, useCallback } from "react";
-
-// Global types
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-  }
-}
+import { getSpeechRecognitionConstructor, SpeechRecognitionLike, SpeechRecognitionResultEventLike } from "@/lib/speech-recognition";
 
 interface AudioRecorderResult {
   isListening: boolean;
@@ -21,7 +14,7 @@ export const useAudioRecorder = (
 ): AudioRecorderResult => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const onTranscriptFinalizedRef = useRef(onTranscriptFinalized);
   useEffect(() => {
@@ -30,8 +23,7 @@ export const useAudioRecorder = (
 
   useEffect(() => {
     console.log("[AudioRecorder] Setting up SpeechRecognition...");
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = getSpeechRecognitionConstructor();
     if (!SpeechRecognition) {
       console.error("[AudioRecorder] Speech Recognition API is not supported.");
       return;
@@ -48,9 +40,9 @@ export const useAudioRecorder = (
       setTranscript("");
     };
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: SpeechRecognitionResultEventLike) => {
       const currentTranscript = Array.from(event.results)
-        .map((result: any) => result[0].transcript)
+        .map((result) => result[0].transcript)
         .join("");
       console.log(
         "[AudioRecorder] onresult: Interim transcript ->",
@@ -64,7 +56,7 @@ export const useAudioRecorder = (
       setIsListening(false);
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: { error: string }) => {
       console.error(
         "[AudioRecorder] onerror: Speech recognition error ->",
         event.error

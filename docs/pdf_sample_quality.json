@@ -1,0 +1,931 @@
+{
+  "generatedAt": "2026-10-10T13:14:38.878Z",
+  "purpose": "Read-only first-eight-page-per-PDF quality sample; provisional heuristic decisions, not bulk-ingestion approval.",
+  "policyVersion": "page-text-quality-v2",
+  "sampleLimitPerPdf": 8,
+  "totals": {
+    "files": 56,
+    "pagesProcessed": 423,
+    "usable": 325,
+    "review": 66,
+    "reject": 32,
+    "noTextLayer": 32,
+    "signals": {
+      "empty_text": 32,
+      "private_use_glyphs": 5,
+      "very_short_text": 39,
+      "control_character_noise": 1,
+      "repeated_line_noise": 2,
+      "long_repeated_character_run": 1
+    }
+  },
+  "documents": [
+    {
+      "path": "Backend/downloaded_docs/10-1752058902635.pdf",
+      "sha256": "ad2a071f5a8c3703d4f48eb1fcc9f2b26426bed6fa4a0430e2eb557d1cfaeb15",
+      "sizeBytes": 6541473,
+      "totalPages": 38,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 5,
+        "review": 2,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        3
+      ],
+      "signals": {
+        "empty_text": 1,
+        "private_use_glyphs": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/12-1752058974176.pdf",
+      "sha256": "fbf59528f154b5bf6f8be0cca2a306ec0703e941fbabe9b79f59ad792786a85e",
+      "sizeBytes": 28982317,
+      "totalPages": 92,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 3,
+        "review": 4,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        1
+      ],
+      "signals": {
+        "empty_text": 1,
+        "very_short_text": 4
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/13-1752058897318.pdf",
+      "sha256": "12c698e931f3b54c47b55f7484322343ae6b8e0ce41a6a20faf9dbf842095ecd",
+      "sizeBytes": 10499209,
+      "totalPages": 59,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 3,
+        "review": 4,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        2
+      ],
+      "signals": {
+        "empty_text": 1,
+        "very_short_text": 3
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/13082-1752059060377.pdf",
+      "sha256": "0f841a096cb53c273214aef2885c0bb6d84814d6fb847566623278ca2477f798",
+      "sizeBytes": 4799248,
+      "totalPages": 31,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13088-1752059091450.pdf",
+      "sha256": "83df2d2a88f0e6629903939b061f464a6f56c27c67887cc37af99f3b3eaac488",
+      "sizeBytes": 10971341,
+      "totalPages": 64,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13090-1752058939294.pdf",
+      "sha256": "7debd45beeca0fda039a256c9d9a7ed1595ebfd879288d1f4d9198f5dd6be1e6",
+      "sizeBytes": 6043701,
+      "totalPages": 17,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13092-1752058981606.pdf",
+      "sha256": "1923dced2ec02b8be34e9ab4e7432ea4fa16fe6274cc62640fc987b0f65b4cfc",
+      "sizeBytes": 16667713,
+      "totalPages": 106,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 1,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/13095-1752059070535.pdf",
+      "sha256": "b0f303a707768cdb90dcb3b5fa27ec0aaee3242f922aff2cd8f3a400bddb2f0f",
+      "sizeBytes": 3439457,
+      "totalPages": 12,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13096-1752059078759.pdf",
+      "sha256": "11e554a53ccd86c87b72f3ef09de201dd626e63fdf1fa4b02cf9ca88d78fba50",
+      "sizeBytes": 3681946,
+      "totalPages": 12,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13109-1752058978296.pdf",
+      "sha256": "a046b5f2aa0fb7fa5dd69f4f8741ce4fb1d19e9ef399c4cb1d04db4f6d5ca29d",
+      "sizeBytes": 4135716,
+      "totalPages": 3,
+      "pagesSampled": 3,
+      "quality": {
+        "usable": 2,
+        "review": 1,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "private_use_glyphs": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/13111-1752058970137.pdf",
+      "sha256": "2e73b1e18f77b132f4bda23cb82d3acc65e36dbd183ea1e4ea8fc174a425f2e8",
+      "sizeBytes": 5328372,
+      "totalPages": 24,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 1,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13113-1752058946681.pdf",
+      "sha256": "50f76432f3cd329294de6b85a841924532358786ceabef964b0b841c56463f23",
+      "sizeBytes": 4557811,
+      "totalPages": 16,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13114-1752058940740.pdf",
+      "sha256": "b7bff6e0f4e8c0e3a0a372d71ab293aec45034b18b905e9565ef7a2cc85232b7",
+      "sizeBytes": 3824880,
+      "totalPages": 16,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 1,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "control_character_noise": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/13116-1752058927499.pdf",
+      "sha256": "4f7a6ec7b2dd48a64f29777b434f528b473f7c0cf2963cee49a14f52bd96016b",
+      "sizeBytes": 4258497,
+      "totalPages": 19,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13124-1752058982473.pdf",
+      "sha256": "5b2fafe09fccff627c4d297ee60c6762db1eb5972e4f7009d2c6d1d1ed72f87a",
+      "sizeBytes": 3913319,
+      "totalPages": 50,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13125-1752058981486.pdf",
+      "sha256": "738c3051554f2cf4591fb6eac033f1726ae1aafab40d2372f0cd7c3e2d805bd7",
+      "sizeBytes": 6296066,
+      "totalPages": 45,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 1,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/13126-1752058979579.pdf",
+      "sha256": "b3f9a1fb5afd1ecece4378bf6585bf6cf3e7eb50c6304ee1cff1a8cb4aeab386",
+      "sizeBytes": 5460431,
+      "totalPages": 30,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/2596-1752019395860.pdf",
+      "sha256": "ad2a071f5a8c3703d4f48eb1fcc9f2b26426bed6fa4a0430e2eb557d1cfaeb15",
+      "sizeBytes": 6541473,
+      "totalPages": 38,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 5,
+        "review": 2,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        3
+      ],
+      "signals": {
+        "empty_text": 1,
+        "private_use_glyphs": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/2599-1752019372078.pdf",
+      "sha256": "12c698e931f3b54c47b55f7484322343ae6b8e0ce41a6a20faf9dbf842095ecd",
+      "sizeBytes": 10499209,
+      "totalPages": 59,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 3,
+        "review": 4,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        2
+      ],
+      "signals": {
+        "empty_text": 1,
+        "very_short_text": 3
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/4-1752059010859.pdf",
+      "sha256": "54e14d426f9d85ea8171cb0618feb7e3b70e0c212c973b2c13f1e1b856869092",
+      "sizeBytes": 36838461,
+      "totalPages": 139,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 2,
+        "review": 4,
+        "reject": 2
+      },
+      "noTextLayerPages": [
+        1,
+        2
+      ],
+      "signals": {
+        "empty_text": 2,
+        "very_short_text": 2
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/52-1752059045623.pdf",
+      "sha256": "16974faf1578ce7c765ec2a8456e3a0a7db5a9b749a6fd2a49577c61bae3e9f9",
+      "sizeBytes": 4338924,
+      "totalPages": 34,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 3,
+        "review": 1,
+        "reject": 4
+      },
+      "noTextLayerPages": [
+        2,
+        4,
+        6,
+        8
+      ],
+      "signals": {
+        "repeated_line_noise": 1,
+        "empty_text": 4
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/53-1752059021300.pdf",
+      "sha256": "5d49ed15d08afd88914603f3023afc56147cdee9e771c532b84933605aa62266",
+      "sizeBytes": 4076296,
+      "totalPages": 30,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 3,
+        "review": 5,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "repeated_line_noise": 1,
+        "very_short_text": 4
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/57-1752059030908.pdf",
+      "sha256": "8d5dc35caf7a5984011ecd822011060f7cda98b2c758a0c2f39b1f010be83c60",
+      "sizeBytes": 5210016,
+      "totalPages": 40,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/59-1752059041887.pdf",
+      "sha256": "2a7e306fe3b1c47916d8bbaf79ed0604d985825662a3070a2b35e146f5c89f2a",
+      "sizeBytes": 5774589,
+      "totalPages": 45,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 1,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "private_use_glyphs": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/60-1752059063681.pdf",
+      "sha256": "3b959e137cdcf748781c9be25ef75e72326404413134b6cd4fb8d7e3aa05e50f",
+      "sizeBytes": 11364756,
+      "totalPages": 117,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 5,
+        "review": 3,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 3
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/61-1752059055164.pdf",
+      "sha256": "ff533ece0f0914af261a212da5f460186789336281fa0baa16f4fb14d84b6389",
+      "sizeBytes": 11288463,
+      "totalPages": 109,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 6,
+        "review": 2,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 2
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/9-1752059087105.pdf",
+      "sha256": "175319714cc2a14e031e57a22ccfc8a4685493465bc7f2aee4fbf64e1a6948c0",
+      "sizeBytes": 36819566,
+      "totalPages": 156,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 5,
+        "review": 2,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        5
+      ],
+      "signals": {
+        "empty_text": 1,
+        "private_use_glyphs": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/ATBD-for-saphir-rain-ver2-1752238807619.pdf",
+      "sha256": "9bdef70e1e4015763e7979c790b2f94ea7e9e04e0ad0e4223d7b64a5273355eb",
+      "sizeBytes": 1414185,
+      "totalPages": 27,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/ATBD_AnalysedCHL_GlobalOcean-1752238811771.pdf",
+      "sha256": "283497e3c266992567e6cc01d548824445fa9820f9bf68013ce7c004a46bacc9",
+      "sizeBytes": 2526651,
+      "totalPages": 24,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 1,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/ATBD_INSAT-3D_SST_REV_V1-1752238799753.pdf",
+      "sha256": "145ad658101f36d50cb124095a1464129cd9e5882c79ffce5815e4f21691ffe9",
+      "sizeBytes": 1392885,
+      "totalPages": 20,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/ATBD_SCAT_v1_fuldoc2-1752238807828.pdf",
+      "sha256": "ecb19a3e5d161ccf901ca32215e95fbcc3925fd6421844bf333acb36cbfc1132",
+      "sizeBytes": 1070553,
+      "totalPages": 42,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/Analysed-Winds-1752238803930.pdf",
+      "sha256": "13dc3956e211bf71e2726f0f2162b281a915e485856e6e5ebe13581b3828bc4c",
+      "sizeBytes": 596963,
+      "totalPages": 6,
+      "pagesSampled": 6,
+      "quality": {
+        "usable": 3,
+        "review": 2,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        4
+      ],
+      "signals": {
+        "very_short_text": 1,
+        "empty_text": 1,
+        "long_repeated_character_run": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/HEM_rain-revised-atbd-1752238798539.pdf",
+      "sha256": "8b36af9ec119c2160cecfc44453410793a19fa1ac601b612ea55c469efd1721d",
+      "sizeBytes": 2253597,
+      "totalPages": 29,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/High_Spatial_density_winds-1752238802642.pdf",
+      "sha256": "1caa810d4c141d14908580182f5692f801fe0b378c74a50d7f59a06bf662fd65",
+      "sizeBytes": 147711,
+      "totalPages": 2,
+      "pagesSampled": 2,
+      "quality": {
+        "usable": 2,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT-3DS_Operational_Products_V1-1752238808651.pdf",
+      "sha256": "1cd99728ae3e1cfc5b108c23ca8bf0f4e4bc9a45c73b081dcc3cd078e4845b16",
+      "sizeBytes": 597671,
+      "totalPages": 16,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 5,
+        "review": 3,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT3D_COTS-1752238795625.pdf",
+      "sha256": "5d6b36b1a1f756e0531133cb93770aa9a448d9732c0166a6106466f6cda9859e",
+      "sizeBytes": 814647,
+      "totalPages": 6,
+      "pagesSampled": 6,
+      "quality": {
+        "usable": 3,
+        "review": 3,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 3
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT3D_Products-1752238797458.pdf",
+      "sha256": "87263c582392a9d615c8fef46b18c713b9b4db0c067edbffe2206ac9d0688f5a",
+      "sizeBytes": 924369,
+      "totalPages": 31,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 1,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_3D_ATBD_MAY_2015-1752019403927.pdf",
+      "sha256": "18fd6f764ae3a4db5c1155c583ad9a6294300acc9eaa9db53310c71f38ee6532",
+      "sizeBytes": 10193195,
+      "totalPages": 379,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 5,
+        "review": 3,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 3
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_3D_ATBD_MAY_2015-1752238816397.pdf",
+      "sha256": "18fd6f764ae3a4db5c1155c583ad9a6294300acc9eaa9db53310c71f38ee6532",
+      "sizeBytes": 10193195,
+      "totalPages": 379,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 5,
+        "review": 3,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 3
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_AOD_ATBD_revised-1752238799277.pdf",
+      "sha256": "9a4ae572520a8d8ea0d10c76b4cb58b5c5713a383768507ae7b18a0919355751",
+      "sizeBytes": 302538,
+      "totalPages": 13,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 6,
+        "review": 2,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_Product_Version_information_V01-1752238722925.pdf",
+      "sha256": "3f0a137a9381b8c7f436b653f9d4aa3b5b440c19cd2d34c418b7027477eea8bd",
+      "sizeBytes": 1693134,
+      "totalPages": 7,
+      "pagesSampled": 7,
+      "quality": {
+        "usable": 0,
+        "review": 0,
+        "reject": 7
+      },
+      "noTextLayerPages": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "signals": {
+        "empty_text": 7
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_Product_Version_information_V01-1752238808359.pdf",
+      "sha256": "3f0a137a9381b8c7f436b653f9d4aa3b5b440c19cd2d34c418b7027477eea8bd",
+      "sizeBytes": 1693134,
+      "totalPages": 7,
+      "pagesSampled": 7,
+      "quality": {
+        "usable": 0,
+        "review": 0,
+        "reject": 7
+      },
+      "noTextLayerPages": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "signals": {
+        "empty_text": 7
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/Incremental-ATBD-12Feb2020-1752019399297.pdf",
+      "sha256": "8ada153e19041cc458f0a5cf37c6fad3f2b40db6cf21b1f76fd0a666097a34c6",
+      "sizeBytes": 5438264,
+      "totalPages": 228,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 6,
+        "review": 2,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/Incremental-ATBD-12Feb2020-1752238813856.pdf",
+      "sha256": "8ada153e19041cc458f0a5cf37c6fad3f2b40db6cf21b1f76fd0a666097a34c6",
+      "sizeBytes": 5438264,
+      "totalPages": 228,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 6,
+        "review": 2,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/MT_ATBD_ver3_Final2-1752238809465.pdf",
+      "sha256": "9096712d5768132dd0dfe952e936ffffec5acb75032a5b1bcf6ba2c64350742d",
+      "sizeBytes": 1848278,
+      "totalPages": 80,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 6,
+        "review": 2,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {
+        "very_short_text": 2
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/OCM_AOD_ATBD%20V1_1-1752238811533.pdf",
+      "sha256": "8984ad48ebde1c3a7a5c22a541a8d79fbc59fd8517c781e9b6242046dbfa9bbe",
+      "sizeBytes": 2804775,
+      "totalPages": 29,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/OCM_IOPS_ATBD-1752238810660.pdf",
+      "sha256": "50e6a8bbe272b04394d8280cb26432ff683a948091ae019b706016185290711c",
+      "sizeBytes": 1254778,
+      "totalPages": 16,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/SALP-MU-M-OP-15984-CN_0102%5B1%5D_handbook-1752019401882.pdf",
+      "sha256": "da0c7807d0b69704b2616eb3819e0c128dcd3eb88d667bee5431a85c114642d9",
+      "sizeBytes": 5845712,
+      "totalPages": 83,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 6,
+        "review": 1,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        2
+      ],
+      "signals": {
+        "empty_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/SALP-MU-M-OP-15984-CN_0102%5B1%5D_handbook-1752238816256.pdf",
+      "sha256": "da0c7807d0b69704b2616eb3819e0c128dcd3eb88d667bee5431a85c114642d9",
+      "sizeBytes": 5845712,
+      "totalPages": 83,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 6,
+        "review": 1,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        2
+      ],
+      "signals": {
+        "empty_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/SALP-ST-M-EA-15839-CN_0202%5B1%5D_vol20_products-1752238806173.pdf",
+      "sha256": "b0acc92b89e9f3cac18a56a8ebdf2119d31b18a14f3df1ae8262359cd54636eb",
+      "sizeBytes": 979476,
+      "totalPages": 47,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 0,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        1
+      ],
+      "signals": {
+        "empty_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/decade-mosdacpdf_0-1752238795239.pdf",
+      "sha256": "2f1fa35064cdc9732d9f133dc3b8d766f0fbcd5e51eee33b712b3ee87fe68be1",
+      "sizeBytes": 953168,
+      "totalPages": 3,
+      "pagesSampled": 3,
+      "quality": {
+        "usable": 3,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/mosdac-data-guidelines-1752238782551.pdf",
+      "sha256": "c52f6ada4c67f56607664d11f6a6c974efec2735ae61ab0bb004ab092c20356e",
+      "sizeBytes": 424478,
+      "totalPages": 8,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 8,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/mosdac-data-guidelines_english-1752238782742.pdf",
+      "sha256": "5967417516c305d0e4969aaea4af6819d2579776ceb5c8fe33945181994447c0",
+      "sizeBytes": 330345,
+      "totalPages": 5,
+      "pagesSampled": 5,
+      "quality": {
+        "usable": 5,
+        "review": 0,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    },
+    {
+      "path": "Backend/downloaded_docs/scatsat_level4_dataproducts-1752237925537.pdf",
+      "sha256": "9ff0eeef1faaa7293f8aab1bc0c765239db7fe33233146c0366148a8b8870a13",
+      "sizeBytes": 991400,
+      "totalPages": 16,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 0,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        4
+      ],
+      "signals": {
+        "empty_text": 1
+      }
+    },
+    {
+      "path": "Backend/downloaded_docs/scatsat_level4_dataproducts-1752238809642.pdf",
+      "sha256": "9ff0eeef1faaa7293f8aab1bc0c765239db7fe33233146c0366148a8b8870a13",
+      "sizeBytes": 991400,
+      "totalPages": 16,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 0,
+        "reject": 1
+      },
+      "noTextLayerPages": [
+        4
+      ],
+      "signals": {
+        "empty_text": 1
+      }
+    },
+    {
+      "path": "Backend/mosac-data/MOSDAC.pdf",
+      "sha256": "e5fc099bf93f38e4e9712a97802eb16e3c1d262d154abcc61b9c5096c605a735",
+      "sizeBytes": 1415181,
+      "totalPages": 95,
+      "pagesSampled": 8,
+      "quality": {
+        "usable": 7,
+        "review": 1,
+        "reject": 0
+      },
+      "noTextLayerPages": [],
+      "signals": {}
+    }
+  ]
+}

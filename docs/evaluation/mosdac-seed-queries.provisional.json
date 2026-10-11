@@ -1,0 +1,73 @@
+[
+  {
+    "id": "samudra-expansion-001",
+    "query": "What does the SAMUDRA programme name stand for?",
+    "relevant": [
+      { "sourceId": "ad2a071f5a8c3703d4f48eb1fcc9f2b26426bed6fa4a0430e2eb557d1cfaeb15", "pageNumber": 4 }
+    ]
+  },
+  {
+    "id": "wave-model-altimeters-001",
+    "query": "Which satellite altimeter missions contributed significant wave-height observations to the numerical wave model?",
+    "relevant": [
+      { "sourceId": "ad2a071f5a8c3703d4f48eb1fcc9f2b26426bed6fa4a0430e2eb557d1cfaeb15", "pageNumber": 4 }
+    ]
+  },
+  {
+    "id": "wave-atlas-purpose-001",
+    "query": "What does the Eyes on Waves from Space atlas present about wave climatology and cyclones?",
+    "relevant": [
+      { "sourceId": "ad2a071f5a8c3703d4f48eb1fcc9f2b26426bed6fa4a0430e2eb557d1cfaeb15", "pageNumber": 2 },
+      { "sourceId": "ad2a071f5a8c3703d4f48eb1fcc9f2b26426bed6fa4a0430e2eb557d1cfaeb15", "pageNumber": 4 }
+    ]
+  },
+  {
+    "id": "antarctica-sar-calibration-site-001",
+    "query": "What was the main SAR calibration objective of the 38th Indian Antarctic expedition?",
+    "relevant": [
+      { "sourceId": "0f841a096cb53c273214aef2885c0bb6d84814d6fb847566623278ca2477f798", "pageNumber": 2 }
+    ]
+  },
+  {
+    "id": "antarctica-expedition-organizer-001",
+    "query": "Which organization arranges the Indian scientific expedition to Antarctica?",
+    "relevant": [
+      { "sourceId": "0f841a096cb53c273214aef2885c0bb6d84814d6fb847566623278ca2477f798", "pageNumber": 2 }
+    ]
+  },
+  {
+    "id": "nisar-bands-001",
+    "query": "Which radar bands are planned for NISAR spaceborne observations?",
+    "relevant": [
+      { "sourceId": "83df2d2a88f0e6629903939b061f464a6f56c27c67887cc37af99f3b3eaac488", "pageNumber": 2 }
+    ]
+  },
+  {
+    "id": "uavsar-pdm-data-001",
+    "query": "What airborne SAR data was used to derive and validate the polarimetric distortion matrix?",
+    "relevant": [
+      { "sourceId": "83df2d2a88f0e6629903939b061f464a6f56c27c67887cc37af99f3b3eaac488", "pageNumber": 2 }
+    ]
+  },
+  {
+    "id": "pdm-algorithm-001",
+    "query": "Which method did the report use to estimate the polarimetric distortion matrix?",
+    "relevant": [
+      { "sourceId": "83df2d2a88f0e6629903939b061f464a6f56c27c67887cc37af99f3b3eaac488", "pageNumber": 3 }
+    ]
+  },
+  {
+    "id": "insat3d-dcc-screening-001",
+    "query": "How were deep convective cloud candidates screened when calibrating INSAT-3D visible-channel observations?",
+    "relevant": [
+      { "sourceId": "7debd45beeca0fda039a256c9d9a7ed1595ebfd879288d1f4d9198f5dd6be1e6", "pageNumber": 2 }
+    ]
+  },
+  {
+    "id": "insat3d-gain-range-001",
+    "query": "What calibration gain coefficient range was reported for INSAT-3D deep convective clouds?",
+    "relevant": [
+      { "sourceId": "7debd45beeca0fda039a256c9d9a7ed1595ebfd879288d1f4d9198f5dd6be1e6", "pageNumber": 2 }
+    ]
+  }
+]

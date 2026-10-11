@@ -1,5 +1,5 @@
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import {  OllamaEmbeddings } from "@langchain/ollama";
 import { PineconeStore } from "@langchain/pinecone";
 import { Pinecone } from "@pinecone-database/pinecone";
@@ -70,13 +70,15 @@ async function pipeline(pdfDir: string) {
     //     }
     //   }
 
-    console.log("  🧠 Chunks embedded into Pinecone");
+    console.log("  ℹ️ Legacy vector writes are disabled; no chunks were embedded or indexed.");
   }
 
   console.log("\n🎉 Pipeline finished.");
 }
 
-pipeline(pdfFolder).catch((e) => {
-  console.error( "❌ Pipeline error:", e);
-  process.exit(1);
-});
+if (require.main === module) {
+  pipeline(pdfFolder).catch((error: unknown) => {
+    console.error("Legacy PDF inspection failed:", error instanceof Error ? error.message : "unknown error");
+    process.exitCode = 1;
+  });
+}

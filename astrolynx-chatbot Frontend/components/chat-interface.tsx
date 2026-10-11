@@ -12,6 +12,7 @@ import {
   Languages,
   Mic,
   StopCircle,
+  PanelLeft,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -22,13 +23,15 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { AudioModeModal } from "@/components/AudioModeModal";
+import { getSpeechRecognitionConstructor, SpeechRecognitionLike, SpeechRecognitionResultEventLike } from "@/lib/speech-recognition";
+import { AuthCredentials, AuthPanel } from "@/components/auth-panel";
+import { AuthUser, ChatSidebar, Conversation } from "@/components/chat-sidebar";
 
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-    SpeechRecognitionEvent: any;
-  }
+type ChatHistoryResponse = { history?: Message[] };
+
+function isSessionId(value: unknown): value is string {
+  return typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
 }
 
 type Message = {
@@ -36,13 +39,22 @@ type Message = {
   content: string;
   role: "user" | "assistant";
   timestamp: string;
-  sources?: string[];
+  citations?: {
+    id: string;
+    title: string;
+    source: string;
+    page?: number;
+    section?: string;
+    url?: string;
+  }[];
   isStreaming?: boolean;
   imageData?: string;
   audioData?: string;
 };
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001")
+  .trim()
+  .replace(/\/+$/u, "");
 
 const LANGUAGES = [
   { code: "en", name: "English" },
@@ -52,14 +64,43 @@ const LANGUAGES = [
   { code: "hi-en", name: "Hinglish" },
   { code: "de", name: "Deutsch" },
 ];
+const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+function StreamingDots() {
+  return (
+    <motion.div className="flex space-x-1">
+      {[0, 1, 2].map((i) => (
+        <motion.div
+          key={i}
+          className="w-2 h-2 bg-blue-400 rounded-full"
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+        />
+      ))}
+    </motion.div>
+  );
+}
 
 export function ChatInterface() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationSearch, setConversationSearch] = useState("");
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [hasMounted, setHasMounted] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [chatRequestError, setChatRequestError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [speechRecognitionAvailable, setSpeechRecognitionAvailable] = useState<boolean | null>(null);
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [audioState, setAudioState] = useState<
     "idle" | "listening" | "processing" | "speaking"
@@ -68,12 +109,40 @@ export function ChatInterface() {
     base64: string;
     previewUrl: string;
   } | null>(null);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const sessionInitializationStartedRef = useRef(false);
+  const chatRequestControllersRef = useRef(new Set<AbortController>());
+  const audioRequestControllerRef = useRef<AbortController | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const audioModalActiveRef = useRef(false);
+  const startModalListeningRef = useRef<() => void>(() => {});
+  const closeAudioModalRef = useRef<() => void>(() => {});
+  const imageReaderRef = useRef<FileReader | null>(null);
+
+  useEffect(() => () => {
+    audioModalActiveRef.current = false;
+    chatRequestControllersRef.current.forEach((controller) => controller.abort());
+    chatRequestControllersRef.current.clear();
+    audioPlayerRef.current?.pause();
+    audioPlayerRef.current = null;
+  }, []);
+  useEffect(() => () => {
+    imageReaderRef.current?.abort();
+    if (selectedImage?.previewUrl) URL.revokeObjectURL(selectedImage.previewUrl);
+  }, [selectedImage]);
+  const clearSelectedImage = useCallback(() => {
+    imageReaderRef.current?.abort();
+    imageReaderRef.current = null;
+    setSelectedImage(null);
+    setImageUploadError(null);
+  }, []);
 
   // In chat-interface.tsx
 
@@ -84,17 +153,24 @@ export function ChatInterface() {
   // In ChatInterface.tsx
 
   const handleAudioMessage = async (transcript: string) => {
+    if (!audioModalActiveRef.current) return;
     console.log(
       `[ChatInterface] Handling finalized transcript: "${transcript}"`
     );
     if (!transcript.trim()) {
       console.log("[ChatInterface] Transcript was empty, re-listening...");
-      startModalListening(); // If user doesn't speak, just start listening again
+      startModalListeningRef.current(); // If user doesn't speak, just start listening again
       return;
     }
 
     setAudioState("processing");
     console.log("[ChatInterface] State changed to -> processing");
+    setIsTyping(true);
+
+    const requestController = new AbortController();
+    audioRequestControllerRef.current = requestController;
+    chatRequestControllersRef.current.add(requestController);
+    const requestSessionId = activeSessionIdRef.current;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -108,10 +184,12 @@ export function ChatInterface() {
       console.log("[ChatInterface] Sending audio transcript to backend...");
       const response = await fetch(`${BASE_URL}/api/chat`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
+        signal: requestController.signal,
         body: JSON.stringify({
           message: transcript,
-          sessionId: sessionId,
+          sessionId: requestSessionId,
           isAudioMode: true,
           targetLanguage: selectedLanguage,
         }),
@@ -120,6 +198,7 @@ export function ChatInterface() {
       if (!response.ok) throw new Error("API call failed");
 
       const data = await response.json();
+      if (requestController.signal.aborted || !audioModalActiveRef.current || activeSessionIdRef.current !== requestSessionId) return;
       const aiMessage: Message = data.aiMessage;
 
       console.log("[ChatInterface] Received response from backend.", data);
@@ -132,20 +211,22 @@ export function ChatInterface() {
         const audioPlayer = new Audio(
           `data:audio/mp3;base64,${aiMessage.audioData}`
         );
+        audioPlayerRef.current = audioPlayer;
 
         // --- THIS IS THE KEY CHANGE ---
         // When the AI finishes speaking, start the next listening cycle automatically.
         audioPlayer.onended = () => {
+          audioPlayerRef.current = null;
           console.log(
             "[ChatInterface] Audio playback finished. Looping back to listening state."
           );
-          startModalListening();
+          if (audioModalActiveRef.current) startModalListeningRef.current();
         };
 
         audioPlayer.onerror = (e) => {
           console.error("[ChatInterface] Error during audio playback:", e);
           // On error, we should probably close to prevent getting stuck in a loop
-          closeAudioModal();
+          closeAudioModalRef.current();
         };
 
         console.log("[ChatInterface] Attempting to play audio...");
@@ -154,16 +235,17 @@ export function ChatInterface() {
             "[ChatInterface] Audio autoplay was prevented by the browser:",
             error
           );
-          closeAudioModal();
+          closeAudioModalRef.current();
         });
       } else {
         // If there's no audio data, immediately loop back to listening for the user's next turn.
         console.log(
           "[ChatInterface] No audio data in response, looping back to listening."
         );
-        startModalListening();
+        startModalListeningRef.current();
       }
     } catch (error) {
+      if (requestController.signal.aborted) return;
       console.error(
         "[ChatInterface] Error during audio message handling:",
         error
@@ -174,30 +256,45 @@ export function ChatInterface() {
         role: "assistant",
         timestamp: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      if (activeSessionIdRef.current === requestSessionId) setMessages((prev) => [...prev, errorMessage]);
       // Close the modal on a critical error
-      closeAudioModal();
+      closeAudioModalRef.current();
+    } finally {
+      chatRequestControllersRef.current.delete(requestController);
+      if (audioRequestControllerRef.current === requestController) audioRequestControllerRef.current = null;
+      if (activeSessionIdRef.current === requestSessionId) setIsTyping(false);
     }
   };
 
   const {
-    isListening: isModalListening,
     transcript: modalTranscript,
     startListening: startModalListening,
     stopListening: stopModalListening,
   } = useAudioRecorder(handleAudioMessage);
-  useEffect(() => {
-    if (isModalListening) setAudioState("listening");
-  }, [isModalListening]);
-  const openAudioModal = () => {
-    setIsAudioModalOpen(true);
+  const listenForAudio = useCallback(() => {
+    setAudioState("listening");
     startModalListening();
+  }, [startModalListening]);
+  const openAudioModal = () => {
+    audioModalActiveRef.current = true;
+    setIsAudioModalOpen(true);
+    listenForAudio();
   };
-  const closeAudioModal = () => {
+  const closeAudioModal = useCallback(() => {
+    audioModalActiveRef.current = false;
+    audioRequestControllerRef.current?.abort();
+    audioRequestControllerRef.current = null;
     stopModalListening();
+    audioPlayerRef.current?.pause();
+    audioPlayerRef.current = null;
     setIsAudioModalOpen(false);
     setAudioState("idle");
-  };
+    setIsTyping(false);
+  }, [stopModalListening]);
+  useEffect(() => {
+    startModalListeningRef.current = listenForAudio;
+    closeAudioModalRef.current = closeAudioModal;
+  }, [listenForAudio, closeAudioModal]);
 
   const scrollToBottom = () =>
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -208,50 +305,217 @@ export function ChatInterface() {
     }
   }, [inputValue, selectedImage]);
 
-  const fetchChatHistory = useCallback(async (currentSessionId: string) => {
+  const fetchChatHistory = useCallback(async (currentSessionId: string): Promise<boolean> => {
     try {
       const response = await fetch(
-        `${BASE_URL}/api/session/history/${currentSessionId}`
+        `${BASE_URL}/api/session/history/${currentSessionId}`,
+        { credentials: "include" }
       );
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      if (data.history?.length)
+      const data = (await response.json()) as ChatHistoryResponse;
+      if (activeSessionIdRef.current !== currentSessionId) return true;
+      if (Array.isArray(data.history)) {
         setMessages(
-          data.history.filter(
-            (msg: any) =>
-              msg && msg.id && msg.content && msg.role && msg.timestamp
+          data.history.filter((msg) =>
+            msg && typeof msg.id === "string" && typeof msg.content === "string" &&
+            (msg.role === "user" || msg.role === "assistant") && typeof msg.timestamp === "string"
           )
         );
-      else setMessages([]);
+      } else {
+        setMessages([]);
+      }
+      setSessionError(null);
+      return true;
     } catch (error) {
       console.error("Error fetching chat history:", error);
+      if (activeSessionIdRef.current === currentSessionId) setSessionError("Could not restore this chat. Check your connection and try again.");
+      return false;
     }
   }, []);
 
+  const fetchConversations = useCallback(async (search = ""): Promise<Conversation[]> => {
+    setIsLoadingConversations(true);
+    try {
+      const query = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : "";
+      const response = await fetch(`${BASE_URL}/api/session${query}`, { credentials: "include" });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json() as { conversations?: unknown };
+      const items = Array.isArray(data.conversations)
+        ? data.conversations.filter((item): item is Conversation =>
+            typeof item === "object" && item !== null &&
+            typeof (item as Conversation).sessionId === "string" &&
+            typeof (item as Conversation).title === "string"
+          )
+        : [];
+      setConversations(items);
+      return items;
+    } catch (error) {
+      console.error("Error fetching conversation list:", error);
+      return [];
+    } finally {
+      setIsLoadingConversations(false);
+    }
+  }, []);
+
+  const createConversation = useCallback(async (): Promise<void> => {
+    setIsLoadingSession(true);
+    setSessionError(null);
+    try {
+      const response = await fetch(`${BASE_URL}/api/session`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json() as { sessionId?: unknown };
+      if (!isSessionId(data.sessionId)) throw new Error("Session service returned an invalid ID.");
+      localStorage.setItem("chatSessionId", data.sessionId);
+      activeSessionIdRef.current = data.sessionId;
+      setSessionId(data.sessionId);
+      setMessages([]);
+      await fetchConversations(conversationSearch);
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      setSessionError("Could not create a chat. Check your connection and retry.");
+    } finally {
+      setIsLoadingSession(false);
+    }
+  }, [conversationSearch, fetchConversations]);
+
   const establishSession = useCallback(async () => {
     setIsLoadingSession(true);
-    let currentSessionId = localStorage.getItem("chatSessionId");
-    if (currentSessionId) {
-      setSessionId(currentSessionId);
-      await fetchChatHistory(currentSessionId);
-    } else {
-      try {
-        const response = await fetch(`${BASE_URL}/api/session`);
-        const data = await response.json();
-        currentSessionId = data.sessionId;
-        localStorage.setItem("chatSessionId", currentSessionId!);
-        setSessionId(currentSessionId);
-      } catch (error) {
-        console.error("Error establishing new session:", error);
+    setSessionError(null);
+    try {
+      const chats = await fetchConversations("");
+      let currentSessionId: string | null = localStorage.getItem("chatSessionId");
+      if (currentSessionId && !isSessionId(currentSessionId)) {
+        localStorage.removeItem("chatSessionId");
+        currentSessionId = null;
       }
+
+      if (!currentSessionId || !chats.some((conversation) => conversation.sessionId === currentSessionId)) {
+        currentSessionId = chats[0]?.sessionId ?? null;
+      }
+
+      if (currentSessionId) {
+        localStorage.setItem("chatSessionId", currentSessionId);
+        activeSessionIdRef.current = currentSessionId;
+        setSessionId(currentSessionId);
+        const historyLoaded = await fetchChatHistory(currentSessionId);
+        if (!historyLoaded) throw new Error("Could not load the selected conversation.");
+        return;
+      }
+
+      await createConversation();
+    } catch (error) {
+      console.error("Error establishing chat session:", error);
+      setSessionError("Could not connect to AstroLynx. Check your connection and retry.");
+    } finally {
+      setIsLoadingSession(false);
     }
-    setIsLoadingSession(false);
-  }, [fetchChatHistory]);
+  }, [createConversation, fetchChatHistory, fetchConversations]);
 
   useEffect(() => {
-    establishSession();
-  }, [establishSession]);
+    // Authentication is checked after mount so the cookie-backed session is never
+    // read during server rendering.
+    void fetch(`${BASE_URL}/api/auth/me`, { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json() as { user?: AuthUser | null };
+        setUser(data.user ?? null);
+      })
+      .catch((error: unknown) => {
+        console.error("Could not check sign-in state:", error);
+        setAuthError("Could not connect to AstroLynx. Check the API and try again.");
+      })
+      .finally(() => {
+        setHasMounted(true);
+        setAuthChecked(true);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked || !user || sessionInitializationStartedRef.current) return;
+    sessionInitializationStartedRef.current = true;
+    void establishSession();
+  }, [authChecked, establishSession, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const timeout = window.setTimeout(() => void fetchConversations(conversationSearch), 250);
+    return () => window.clearTimeout(timeout);
+  }, [conversationSearch, fetchConversations, user]);
+
+  const handleAuthSubmit = async (mode: "login" | "signup", credentials: AuthCredentials) => {
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      const response = await fetch(`${BASE_URL}/api/auth/${mode}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentials),
+      });
+      const data = await response.json() as { user?: AuthUser; error?: string };
+      if (!response.ok || !data.user) throw new Error(data.error || "Could not sign in.");
+      localStorage.removeItem("chatSessionId");
+      sessionInitializationStartedRef.current = false;
+      setMessages([]);
+      activeSessionIdRef.current = null;
+      setSessionId(null);
+      setUser(data.user);
+      setAuthError(null);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Could not sign in.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${BASE_URL}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+    } catch (error) {
+      console.error("Sign out request failed:", error);
+    } finally {
+      localStorage.removeItem("chatSessionId");
+      sessionInitializationStartedRef.current = false;
+      setUser(null);
+      activeSessionIdRef.current = null;
+      setSessionId(null);
+      setMessages([]);
+      setConversations([]);
+      setSidebarOpen(false);
+    }
+  };
+
+  const selectConversation = async (selectedSessionId: string) => {
+    if (selectedSessionId === sessionId) {
+      setSidebarOpen(false);
+      return;
+    }
+    activeSessionIdRef.current = selectedSessionId;
+    setIsTyping(false);
+    setIsLoadingSession(true);
+    setSessionId(selectedSessionId);
+    localStorage.setItem("chatSessionId", selectedSessionId);
+    setMessages([]);
+    setChatRequestError(null);
+    setSidebarOpen(false);
+    const loaded = await fetchChatHistory(selectedSessionId);
+    if (!loaded) {
+      activeSessionIdRef.current = null;
+      setSessionId(null);
+    }
+    setIsLoadingSession(false);
+  };
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -271,17 +535,21 @@ export function ChatInterface() {
         timestamp: new Date().toISOString(),
         imageData: selectedImage?.base64,
       };
+      const requestSessionId = sessionId;
       setMessages((prev) => [...prev, newUserMessage]);
-      setInputValue("");
-      clearSelectedImage();
+      setChatRequestError(null);
       setIsTyping(true);
+      const requestController = new AbortController();
+      chatRequestControllersRef.current.add(requestController);
       try {
         const response = await fetch(`${BASE_URL}/api/chat`, {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
+          signal: requestController.signal,
           body: JSON.stringify({
             message: messageToSend,
-            sessionId,
+            sessionId: requestSessionId,
             imageData: newUserMessage.imageData,
             targetLanguage: selectedLanguage,
           }),
@@ -293,50 +561,56 @@ export function ChatInterface() {
           );
         }
         const data = await response.json();
-        const aiMessage: Message = data.aiMessage;
-        setMessages((prev) => [...prev, aiMessage]);
-      } catch (error: any) {
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: `Oops! Something went wrong: ${
-            error.message || "Unknown error"
-          }.`,
-          role: "assistant",
-          timestamp: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, errorMessage]);
+        if (requestController.signal.aborted) return;
+        if (!data || typeof data.aiMessage?.content !== "string") {
+          throw new Error("The chat service returned an invalid response.");
+        }
+        if (activeSessionIdRef.current === requestSessionId) {
+          await fetchChatHistory(requestSessionId);
+          setInputValue("");
+          clearSelectedImage();
+        }
+        void fetchConversations(conversationSearch);
+        window.setTimeout(() => void fetchConversations(conversationSearch), 2500);
+      } catch {
+        if (activeSessionIdRef.current === requestSessionId) setMessages((prev) => prev.filter((message) => message.id !== newUserMessage.id));
+        if (requestController.signal.aborted) return;
+        if (activeSessionIdRef.current === requestSessionId) setChatRequestError("Message wasn’t sent. Your draft is still here; try again when the service is available.");
       } finally {
-        setIsTyping(false);
+        chatRequestControllersRef.current.delete(requestController);
+        if (activeSessionIdRef.current === requestSessionId) setIsTyping(false);
       }
     },
-    [sessionId, selectedImage, inputValue, selectedLanguage]
+    [sessionId, selectedImage, inputValue, selectedLanguage, clearSelectedImage, conversationSearch, fetchConversations, fetchChatHistory]
   );
 
   useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
-      recognition.onstart = () => setIsListening(true);
-      recognition.onresult = (event: any) => {
-        const interimTranscript = Array.from(event.results)
-          .map((result: any) => result[0].transcript)
-          .join("");
-        setInputValue(interimTranscript);
-      };
-      recognition.onend = () => setIsListening(false);
-      recognition.onerror = (event: any) => {
-        setIsListening(false);
-        console.error("[STT onerror]:", event.error);
-      };
-      recognitionRef.current = recognition;
-      return () => {
-        if (recognitionRef.current) recognitionRef.current.stop();
-      };
-    }
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    // Browser capability is only known after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSpeechRecognitionAvailable(Boolean(SpeechRecognition));
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event: SpeechRecognitionResultEventLike) => {
+      const interimTranscript = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join("");
+      setInputValue(interimTranscript);
+    };
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = (event: { error: string }) => {
+      setIsListening(false);
+      console.error("[STT onerror]:", event.error);
+    };
+    recognitionRef.current = recognition;
+    return () => {
+      if (recognitionRef.current) recognitionRef.current.stop();
+    };
   }, []);
 
   const toggleListening = () => {
@@ -351,13 +625,42 @@ export function ChatInterface() {
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) return;
+
+    setImageUploadError(null);
+    if (!ALLOWED_IMAGE_TYPES.has(file.type.toLowerCase())) {
+      setImageUploadError("Choose a PNG, JPEG, or WebP image.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+      setImageUploadError("Choose an image smaller than 5 MB.");
+      return;
+    }
+
+    imageReaderRef.current?.abort();
     const reader = new FileReader();
-    reader.onloadend = () =>
+    imageReaderRef.current = reader;
+    reader.onload = () => {
+      if (imageReaderRef.current !== reader) return;
+      imageReaderRef.current = null;
+      if (typeof reader.result !== "string") {
+        setImageUploadError("The selected image could not be read. Try another file.");
+        return;
+      }
       setSelectedImage({
-        base64: reader.result as string,
+        base64: reader.result,
         previewUrl: URL.createObjectURL(file),
       });
+    };
+    reader.onerror = () => {
+      if (imageReaderRef.current !== reader) return;
+      imageReaderRef.current = null;
+      setImageUploadError("The selected image could not be read. Try another file.");
+    };
+    reader.onabort = () => {
+      if (imageReaderRef.current === reader) imageReaderRef.current = null;
+    };
     reader.readAsDataURL(file);
   };
 
@@ -366,15 +669,12 @@ export function ChatInterface() {
     fileInputRef.current?.click();
   };
 
-  const clearSelectedImage = () => {
-    if (selectedImage?.previewUrl)
-      URL.revokeObjectURL(selectedImage.previewUrl);
-    setSelectedImage(null);
-  };
-
   const handleNewChat = () => {
-    localStorage.removeItem("chatSessionId");
+    activeSessionIdRef.current = null;
+    closeAudioModal();
     setSessionId(null);
+    setSessionError(null);
+    setChatRequestError(null);
     setMessages([]);
     setInputValue("");
     setIsTyping(false);
@@ -382,28 +682,44 @@ export function ChatInterface() {
     if (recognitionRef.current) recognitionRef.current.stop();
     setIsListening(false);
     setSelectedLanguage("en");
-    establishSession();
+    setSidebarOpen(false);
+    void createConversation();
   };
-
-  const StreamingDots = () => (
-    <motion.div className="flex space-x-1">
-      {[0, 1, 2].map((i) => (
-        <motion.div
-          key={i}
-          className="w-2 h-2 bg-blue-400 rounded-full"
-          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-        />
-      ))}
-    </motion.div>
-  );
 
   const showWelcomeMessage = messages.length === 0 && !isLoadingSession;
   const isInputAndSendDisabled =
-    isTyping || isLoadingSession || !sessionId || isListening;
+    isTyping || isLoadingSession || !sessionId || isListening || isAudioModalOpen || Boolean(sessionError);
+
+  if (!authChecked) {
+    return <div className="flex min-h-screen items-center justify-center text-slate-300"><Loader2 className="mr-3 h-5 w-5 animate-spin" />Checking your account…</div>;
+  }
+  if (!user) {
+    return <AuthPanel busy={authBusy} error={authError} onSubmit={handleAuthSubmit} />;
+  }
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-900/40 min-h-0 relative pt-20">
+    <>
+      <ChatSidebar
+        user={user}
+        conversations={conversations}
+        activeSessionId={sessionId}
+        search={conversationSearch}
+        loading={isLoadingConversations}
+        open={sidebarOpen}
+        onSearch={setConversationSearch}
+        onNewChat={handleNewChat}
+        onSelect={(selectedSessionId) => void selectConversation(selectedSessionId)}
+        onLogout={() => void handleLogout()}
+        onClose={() => setSidebarOpen(false)}
+      />
+    <div className="flex-1 flex flex-col bg-slate-900/40 min-h-0 relative pt-20 lg:ml-72">
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(true)}
+        className="fixed left-4 top-4 z-30 rounded-full bg-slate-700 p-3 text-white shadow-lg hover:bg-slate-600 lg:hidden"
+        title="Open chat history"
+        aria-label="Open chat history"
+      ><PanelLeft className="h-5 w-5" /></button>
       {/* --- BUTTONS RESTORED --- */}
       <div className="fixed top-4 right-4 z-50 flex space-x-3">
         <motion.div
@@ -413,6 +729,7 @@ export function ChatInterface() {
           className="relative"
         >
           <select
+            aria-label="Assistant response language"
             value={selectedLanguage}
             onChange={(e) => setSelectedLanguage(e.target.value)}
             disabled={isInputAndSendDisabled}
@@ -441,7 +758,7 @@ export function ChatInterface() {
         >
           <Button
             onClick={handleNewChat}
-            disabled={isLoadingSession}
+            disabled={hasMounted && isLoadingSession}
             className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-3 shadow-lg flex items-center justify-center"
             title="Start New Chat"
           >
@@ -453,7 +770,6 @@ export function ChatInterface() {
 
       <div
         className="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar"
-        aria-live="polite"
       >
         {showWelcomeMessage && (
           <motion.div
@@ -470,7 +786,24 @@ export function ChatInterface() {
             </p>
           </motion.div>
         )}
+        {sessionError && (
+          <div className="mx-auto mb-4 flex max-w-4xl flex-wrap items-center justify-center gap-3 rounded-lg border border-amber-500/30 bg-amber-950/30 p-3 text-sm text-amber-100" role="alert">
+            <span>{sessionError}</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void establishSession()}
+              disabled={isLoadingSession}
+            >
+              {isLoadingSession ? "Retrying…" : "Retry"}
+            </Button>
+          </div>
+        )}
         <div
+          role="log"
+          aria-label="Conversation"
+          aria-live="polite"
+          aria-relevant="additions"
           className={`max-w-4xl mx-auto ${
             showWelcomeMessage ? "hidden" : "space-y-3 md:space-y-4"
           }`}
@@ -515,9 +848,12 @@ export function ChatInterface() {
                     <div className="flex-1 min-w-0">
                       {message.role === "user" && message.imageData && (
                         <div className="mb-3 rounded-lg overflow-hidden border border-slate-600">
-                          <img
+                          <Image
                             src={message.imageData}
                             alt="Uploaded by user"
+                            width={800}
+                            height={600}
+                            unoptimized
                             className="max-w-full h-auto rounded-md"
                             style={{ maxHeight: "200px", objectFit: "contain" }}
                           />
@@ -525,7 +861,9 @@ export function ChatInterface() {
                       )}
                       <div className="leading-relaxed text-sm md:text-base break-words markdown-content prose prose-invert prose-sm md:prose-base max-w-none">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {message.content}
+                          {message.content
+                            .replace(/\n\nSources:\n[\s\S]*$/u, "")
+                            .replace(/\s*\[S\d+(?:\s*,\s*S\d+)*\]/gu, "")}
                         </ReactMarkdown>
                       </div>
                       <div
@@ -548,6 +886,8 @@ export function ChatInterface() {
           </AnimatePresence>
           {isTyping && (
             <motion.div
+              role="status"
+              aria-label="Assistant is responding"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="flex justify-start"
@@ -565,7 +905,7 @@ export function ChatInterface() {
                       className="w-full"
                     />
                   </div>
-                  <StreamingDots />
+                  <div aria-hidden="true"><StreamingDots /></div>
                 </div>
               </Card>
             </motion.div>
@@ -585,6 +925,16 @@ export function ChatInterface() {
         className="p-3 md:p-6 border-t border-slate-700/50 bg-slate-900/80 backdrop-blur-md"
       >
         <div className="max-w-4xl mx-auto">
+          {chatRequestError && (
+            <p className="mb-2 text-sm text-amber-200" role="alert">
+              {chatRequestError}
+            </p>
+          )}
+          {imageUploadError && (
+            <p className="mb-2 text-sm text-red-300" role="alert">
+              {imageUploadError}
+            </p>
+          )}
           {selectedImage && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
@@ -592,9 +942,12 @@ export function ChatInterface() {
               exit={{ opacity: 0, y: -20 }}
               className="relative mb-3 p-2 border border-slate-600 rounded-lg bg-slate-800/50 flex items-center justify-center"
             >
-              <img
+              <Image
                 src={selectedImage.previewUrl}
                 alt="Preview"
+                width={800}
+                height={600}
+                unoptimized
                 className="max-w-full h-auto rounded-md"
                 style={{ maxHeight: "150px", objectFit: "contain" }}
               />
@@ -613,7 +966,7 @@ export function ChatInterface() {
             <div className="flex-1 relative">
               <input
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/webp"
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 style={{ display: "none" }}
@@ -629,11 +982,13 @@ export function ChatInterface() {
                 onClick={handleImageButtonClick}
                 disabled={isInputAndSendDisabled}
                 title="Upload Image"
+                aria-label="Upload image"
               >
                 <ImageIcon className="w-4 h-4 md:w-5 md:h-5" />
               </Button>
               <Textarea
                 ref={textareaRef}
+                aria-label="Message to AstroLynx"
                 placeholder={
                   isListening ? "Listening..." : "Ask about satellite data..."
                 }
@@ -656,8 +1011,9 @@ export function ChatInterface() {
                   isListening ? "text-red-500 animate-pulse" : "text-slate-400"
                 }`}
                 onClick={toggleListening}
-                disabled={isLoadingSession || !sessionId || isTyping}
+                disabled={isLoadingSession || !sessionId || isTyping || !speechRecognitionAvailable}
                 title={isListening ? "Stop Listening" : "Start Voice Input"}
+                aria-label={isListening ? "Stop voice input" : "Start voice input"}
               >
                 {isListening ? (
                   <StopCircle className="w-5 h-5" />
@@ -666,11 +1022,17 @@ export function ChatInterface() {
                 )}
               </Button>
             </div>
+            {speechRecognitionAvailable === false && (
+              <span className="sr-only" role="status">
+                Voice input is not supported by this browser. Type your question instead.
+              </span>
+            )}
             <Button
               onClick={openAudioModal}
-              disabled={isInputAndSendDisabled}
+              disabled={isInputAndSendDisabled || !speechRecognitionAvailable}
               className="bg-green-600 hover:bg-green-700 text-white h-full px-3 md:px-4"
               title="Start Voice Chat"
+              aria-label="Start voice chat"
             >
               <span>Audio Mode</span>
               <Mic className="w-4 h-4" />
@@ -695,5 +1057,6 @@ export function ChatInterface() {
         transcript={modalTranscript}
       />
     </div>
+    </>
   );
 }

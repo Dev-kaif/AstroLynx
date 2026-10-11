@@ -1,0 +1,342 @@
+{
+  "generated_at_utc": "2026-10-10T12:52:01.545415+00:00",
+  "purpose": "Read-only inventory; no corpus files modified.",
+  "files": [
+    {
+      "path": "Backend/downloaded_docs/10-1752058902635.pdf",
+      "size_bytes": 6541473,
+      "sha256": "ad2a071f5a8c3703d4f48eb1fcc9f2b26426bed6fa4a0430e2eb557d1cfaeb15",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/12-1752058974176.pdf",
+      "size_bytes": 28982317,
+      "sha256": "fbf59528f154b5bf6f8be0cca2a306ec0703e941fbabe9b79f59ad792786a85e",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13-1752058897318.pdf",
+      "size_bytes": 10499209,
+      "sha256": "12c698e931f3b54c47b55f7484322343ae6b8e0ce41a6a20faf9dbf842095ecd",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13082-1752059060377.pdf",
+      "size_bytes": 4799248,
+      "sha256": "0f841a096cb53c273214aef2885c0bb6d84814d6fb847566623278ca2477f798",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13088-1752059091450.pdf",
+      "size_bytes": 10971341,
+      "sha256": "83df2d2a88f0e6629903939b061f464a6f56c27c67887cc37af99f3b3eaac488",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13090-1752058939294.pdf",
+      "size_bytes": 6043701,
+      "sha256": "7debd45beeca0fda039a256c9d9a7ed1595ebfd879288d1f4d9198f5dd6be1e6",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13092-1752058981606.pdf",
+      "size_bytes": 16667713,
+      "sha256": "1923dced2ec02b8be34e9ab4e7432ea4fa16fe6274cc62640fc987b0f65b4cfc",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13095-1752059070535.pdf",
+      "size_bytes": 3439457,
+      "sha256": "b0f303a707768cdb90dcb3b5fa27ec0aaee3242f922aff2cd8f3a400bddb2f0f",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13096-1752059078759.pdf",
+      "size_bytes": 3681946,
+      "sha256": "11e554a53ccd86c87b72f3ef09de201dd626e63fdf1fa4b02cf9ca88d78fba50",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13109-1752058978296.pdf",
+      "size_bytes": 4135716,
+      "sha256": "a046b5f2aa0fb7fa5dd69f4f8741ce4fb1d19e9ef399c4cb1d04db4f6d5ca29d",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13111-1752058970137.pdf",
+      "size_bytes": 5328372,
+      "sha256": "2e73b1e18f77b132f4bda23cb82d3acc65e36dbd183ea1e4ea8fc174a425f2e8",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13113-1752058946681.pdf",
+      "size_bytes": 4557811,
+      "sha256": "50f76432f3cd329294de6b85a841924532358786ceabef964b0b841c56463f23",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13114-1752058940740.pdf",
+      "size_bytes": 3824880,
+      "sha256": "b7bff6e0f4e8c0e3a0a372d71ab293aec45034b18b905e9565ef7a2cc85232b7",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13116-1752058927499.pdf",
+      "size_bytes": 4258497,
+      "sha256": "4f7a6ec7b2dd48a64f29777b434f528b473f7c0cf2963cee49a14f52bd96016b",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13124-1752058982473.pdf",
+      "size_bytes": 3913319,
+      "sha256": "5b2fafe09fccff627c4d297ee60c6762db1eb5972e4f7009d2c6d1d1ed72f87a",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13125-1752058981486.pdf",
+      "size_bytes": 6296066,
+      "sha256": "738c3051554f2cf4591fb6eac033f1726ae1aafab40d2372f0cd7c3e2d805bd7",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/13126-1752058979579.pdf",
+      "size_bytes": 5460431,
+      "sha256": "b3f9a1fb5afd1ecece4378bf6585bf6cf3e7eb50c6304ee1cff1a8cb4aeab386",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/2596-1752019395860.pdf",
+      "size_bytes": 6541473,
+      "sha256": "ad2a071f5a8c3703d4f48eb1fcc9f2b26426bed6fa4a0430e2eb557d1cfaeb15",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/2599-1752019372078.pdf",
+      "size_bytes": 10499209,
+      "sha256": "12c698e931f3b54c47b55f7484322343ae6b8e0ce41a6a20faf9dbf842095ecd",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/4-1752059010859.pdf",
+      "size_bytes": 36838461,
+      "sha256": "54e14d426f9d85ea8171cb0618feb7e3b70e0c212c973b2c13f1e1b856869092",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/52-1752059045623.pdf",
+      "size_bytes": 4338924,
+      "sha256": "16974faf1578ce7c765ec2a8456e3a0a7db5a9b749a6fd2a49577c61bae3e9f9",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/53-1752059021300.pdf",
+      "size_bytes": 4076296,
+      "sha256": "5d49ed15d08afd88914603f3023afc56147cdee9e771c532b84933605aa62266",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/57-1752059030908.pdf",
+      "size_bytes": 5210016,
+      "sha256": "8d5dc35caf7a5984011ecd822011060f7cda98b2c758a0c2f39b1f010be83c60",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/59-1752059041887.pdf",
+      "size_bytes": 5774589,
+      "sha256": "2a7e306fe3b1c47916d8bbaf79ed0604d985825662a3070a2b35e146f5c89f2a",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/60-1752059063681.pdf",
+      "size_bytes": 11364756,
+      "sha256": "3b959e137cdcf748781c9be25ef75e72326404413134b6cd4fb8d7e3aa05e50f",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/61-1752059055164.pdf",
+      "size_bytes": 11288463,
+      "sha256": "ff533ece0f0914af261a212da5f460186789336281fa0baa16f4fb14d84b6389",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/9-1752059087105.pdf",
+      "size_bytes": 36819566,
+      "sha256": "175319714cc2a14e031e57a22ccfc8a4685493465bc7f2aee4fbf64e1a6948c0",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/ATBD-for-saphir-rain-ver2-1752238807619.pdf",
+      "size_bytes": 1414185,
+      "sha256": "9bdef70e1e4015763e7979c790b2f94ea7e9e04e0ad0e4223d7b64a5273355eb",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/ATBD_AnalysedCHL_GlobalOcean-1752238811771.pdf",
+      "size_bytes": 2526651,
+      "sha256": "283497e3c266992567e6cc01d548824445fa9820f9bf68013ce7c004a46bacc9",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/ATBD_INSAT-3D_SST_REV_V1-1752238799753.pdf",
+      "size_bytes": 1392885,
+      "sha256": "145ad658101f36d50cb124095a1464129cd9e5882c79ffce5815e4f21691ffe9",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/ATBD_SCAT_v1_fuldoc2-1752238807828.pdf",
+      "size_bytes": 1070553,
+      "sha256": "ecb19a3e5d161ccf901ca32215e95fbcc3925fd6421844bf333acb36cbfc1132",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/Analysed-Winds-1752238803930.pdf",
+      "size_bytes": 596963,
+      "sha256": "13dc3956e211bf71e2726f0f2162b281a915e485856e6e5ebe13581b3828bc4c",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/HEM_rain-revised-atbd-1752238798539.pdf",
+      "size_bytes": 2253597,
+      "sha256": "8b36af9ec119c2160cecfc44453410793a19fa1ac601b612ea55c469efd1721d",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/High_Spatial_density_winds-1752238802642.pdf",
+      "size_bytes": 147711,
+      "sha256": "1caa810d4c141d14908580182f5692f801fe0b378c74a50d7f59a06bf662fd65",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT-3DS_Operational_Products_V1-1752238808651.pdf",
+      "size_bytes": 597671,
+      "sha256": "1cd99728ae3e1cfc5b108c23ca8bf0f4e4bc9a45c73b081dcc3cd078e4845b16",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT3D_COTS-1752238795625.pdf",
+      "size_bytes": 814647,
+      "sha256": "5d6b36b1a1f756e0531133cb93770aa9a448d9732c0166a6106466f6cda9859e",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT3D_Products-1752238797458.pdf",
+      "size_bytes": 924369,
+      "sha256": "87263c582392a9d615c8fef46b18c713b9b4db0c067edbffe2206ac9d0688f5a",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_3D_ATBD_MAY_2015-1752019403927.pdf",
+      "size_bytes": 10193195,
+      "sha256": "18fd6f764ae3a4db5c1155c583ad9a6294300acc9eaa9db53310c71f38ee6532",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_3D_ATBD_MAY_2015-1752238816397.pdf",
+      "size_bytes": 10193195,
+      "sha256": "18fd6f764ae3a4db5c1155c583ad9a6294300acc9eaa9db53310c71f38ee6532",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_AOD_ATBD_revised-1752238799277.pdf",
+      "size_bytes": 302538,
+      "sha256": "9a4ae572520a8d8ea0d10c76b4cb58b5c5713a383768507ae7b18a0919355751",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_Product_Version_information_V01-1752238722925.pdf",
+      "size_bytes": 1693134,
+      "sha256": "3f0a137a9381b8c7f436b653f9d4aa3b5b440c19cd2d34c418b7027477eea8bd",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/INSAT_Product_Version_information_V01-1752238808359.pdf",
+      "size_bytes": 1693134,
+      "sha256": "3f0a137a9381b8c7f436b653f9d4aa3b5b440c19cd2d34c418b7027477eea8bd",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/Incremental-ATBD-12Feb2020-1752019399297.pdf",
+      "size_bytes": 5438264,
+      "sha256": "8ada153e19041cc458f0a5cf37c6fad3f2b40db6cf21b1f76fd0a666097a34c6",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/Incremental-ATBD-12Feb2020-1752238813856.pdf",
+      "size_bytes": 5438264,
+      "sha256": "8ada153e19041cc458f0a5cf37c6fad3f2b40db6cf21b1f76fd0a666097a34c6",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/MT_ATBD_ver3_Final2-1752238809465.pdf",
+      "size_bytes": 1848278,
+      "sha256": "9096712d5768132dd0dfe952e936ffffec5acb75032a5b1bcf6ba2c64350742d",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/OCM_AOD_ATBD%20V1_1-1752238811533.pdf",
+      "size_bytes": 2804775,
+      "sha256": "8984ad48ebde1c3a7a5c22a541a8d79fbc59fd8517c781e9b6242046dbfa9bbe",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/OCM_IOPS_ATBD-1752238810660.pdf",
+      "size_bytes": 1254778,
+      "sha256": "50e6a8bbe272b04394d8280cb26432ff683a948091ae019b706016185290711c",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/SALP-MU-M-OP-15984-CN_0102%5B1%5D_handbook-1752019401882.pdf",
+      "size_bytes": 5845712,
+      "sha256": "da0c7807d0b69704b2616eb3819e0c128dcd3eb88d667bee5431a85c114642d9",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/SALP-MU-M-OP-15984-CN_0102%5B1%5D_handbook-1752238816256.pdf",
+      "size_bytes": 5845712,
+      "sha256": "da0c7807d0b69704b2616eb3819e0c128dcd3eb88d667bee5431a85c114642d9",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/SALP-ST-M-EA-15839-CN_0202%5B1%5D_vol20_products-1752238806173.pdf",
+      "size_bytes": 979476,
+      "sha256": "b0acc92b89e9f3cac18a56a8ebdf2119d31b18a14f3df1ae8262359cd54636eb",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/decade-mosdacpdf_0-1752238795239.pdf",
+      "size_bytes": 953168,
+      "sha256": "2f1fa35064cdc9732d9f133dc3b8d766f0fbcd5e51eee33b712b3ee87fe68be1",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/mosdac-data-guidelines-1752238782551.pdf",
+      "size_bytes": 424478,
+      "sha256": "c52f6ada4c67f56607664d11f6a6c974efec2735ae61ab0bb004ab092c20356e",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/mosdac-data-guidelines_english-1752238782742.pdf",
+      "size_bytes": 330345,
+      "sha256": "5967417516c305d0e4969aaea4af6819d2579776ceb5c8fe33945181994447c0",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/scatsat_level4_dataproducts-1752237925537.pdf",
+      "size_bytes": 991400,
+      "sha256": "9ff0eeef1faaa7293f8aab1bc0c765239db7fe33233146c0366148a8b8870a13",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/downloaded_docs/scatsat_level4_dataproducts-1752238809642.pdf",
+      "size_bytes": 991400,
+      "sha256": "9ff0eeef1faaa7293f8aab1bc0c765239db7fe33233146c0366148a8b8870a13",
+      "pdf_signature": true
+    },
+    {
+      "path": "Backend/mosac-data/MOSDAC.pdf",
+      "size_bytes": 1415181,
+      "sha256": "e5fc099bf93f38e4e9712a97802eb16e3c1d262d154abcc61b9c5096c605a735",
+      "pdf_signature": true
+    }
+  ]
+}

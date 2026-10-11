@@ -25,7 +25,8 @@ const SARVAM_LANGUAGE_MAP: { [key: string]: string } = {
 export async function convertTextToSpeech(
   text: string,
   targetLanguage: string,
-  speaker: string = "vidya" // Default speaker
+  speaker: string = "vidya", // Default speaker
+  signal?: AbortSignal
 ): Promise<string | null> {
   if (!SARVAM_AI_API_KEY) {
     console.error("[TTS Core] Sarvam AI API key is not configured.");
@@ -43,12 +44,7 @@ export async function convertTextToSpeech(
   // Get the Sarvam AI specific language code using the map
   const sarvamLangCode = SARVAM_LANGUAGE_MAP[targetLanguage] || "en-IN";
 
-  console.log(
-    `[TTS Core] Requesting TTS for text (first 50 chars): "${text.substring(
-      0,
-      50
-    )}..."`
-  );
+  console.log(`[TTS Core] Requesting speech generation (${text.length} characters).`);
   console.log(
     `[TTS Core] Target Language Code for Sarvam AI: "${sarvamLangCode}"`
   );
@@ -72,6 +68,7 @@ export async function convertTextToSpeech(
           "api-subscription-key": SARVAM_AI_API_KEY,
         },
         responseType: "json",
+        signal,
       }
     );
 
@@ -85,23 +82,15 @@ export async function convertTextToSpeech(
 
     console.log("[TTS Core] Audio data generated successfully.");
     return base64Audio;
-  } catch (error: any) {
-    console.error("[TTS Core] Error converting text to speech:", error);
+  } catch (error: unknown) {
+    if (signal?.aborted) throw error;
+    console.error("[TTS Core] Speech generation failed:", error instanceof Error ? error.name : "unknown error");
     if (axios.isAxiosError(error) && error.response) {
-      console.error(
-        "[TTS Core] Sarvam AI TTS API error response:",
-        error.response.data
-      );
-    } else if (error.request) {
-      console.error(
-        "[TTS Core] Sarvam AI TTS API: No response received:",
-        error.request
-      );
+      console.error(`[TTS Core] Provider returned HTTP ${error.response.status}.`);
+    } else if (axios.isAxiosError(error) && error.request) {
+      console.error("[TTS Core] Provider request received no response.");
     } else {
-      console.error(
-        "[TTS Core] Sarvam AI TTS API: Error setting up request:",
-        error.message
-      );
+      console.error("[TTS Core] Provider request could not be prepared.");
     }
     return null;
   }
@@ -130,14 +119,11 @@ export const textToSpeechController = async (req: Request, res: Response) => {
     } else {
       res.status(500).json({ error: "Failed to convert text to speech." });
     }
-  } catch (error: any) {
-    console.error(
-      "[TTS Route Handler] Error in textToSpeechController route:",
-      error
-    );
+  } catch (error: unknown) {
+    console.error("[TTS Route Handler] Request failed:", error instanceof Error ? error.name : "unknown error");
     // This catch block is mostly for unexpected errors, as convertTextToSpeech handles its own API errors
     res
       .status(500)
-      .json({ error: error.message || "Internal server error during TTS." });
+      .json({ error: "Internal server error during TTS." });
   }
 };

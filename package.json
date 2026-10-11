@@ -1,0 +1,25 @@
+{
+  "name": "astrolynx",
+  "private": true,
+  "packageManager": "pnpm@11.5.3",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev:api": "pnpm --filter astrolynx-api dev",
+    "dev:web": "pnpm --filter astrolynx-web dev",
+    "build:api": "pnpm --filter astrolynx-api build",
+    "build:web": "pnpm --filter astrolynx-web build",
+    "build": "pnpm run build:api && pnpm run build:web",
+    "lint": "pnpm run lint:web",
+    "typecheck:api": "pnpm --filter astrolynx-api exec tsc --noEmit",
+    "typecheck:web": "pnpm --filter astrolynx-web exec tsc --noEmit",
+    "lint:web": "pnpm --filter astrolynx-web lint",
+    "ingest:inspect-pdf": "pnpm --filter astrolynx-api exec ts-node src/ingestion/inspectPdf.ts",
+    "ingest:inspect-corpus": "pnpm --filter astrolynx-api exec ts-node src/ingestion/inspectCorpus.ts",
+    "ingest:plan-pdf-chunks": "pnpm --filter astrolynx-api exec ts-node src/ingestion/planPdfChunks.ts",
+    "ingest:build-lexical": "pnpm --filter astrolynx-api exec ts-node src/ingestion/buildLexicalIndex.ts",
+    "rag:evaluate-lexical": "pnpm --filter astrolynx-api exec ts-node src/ingestion/evaluateLexical.ts",
+    "ingest:crawl-mosdac": "pnpm --filter astrolynx-api exec ts-node src/ingestion/runMosdacCrawl.ts"
+  }
+}

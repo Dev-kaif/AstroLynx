@@ -1,5 +1,5 @@
 {
-  "name": "astro",
+  "name": "astrolynx-api",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -8,7 +8,13 @@
     "dev": "ts-node-dev --respawn src/index.ts",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "crawl-full": "ts-node-dev --respawn src/Crawl/advancedCrawler.ts"
+    "crawl-full": "ts-node-dev --respawn src/Crawl/advancedCrawler.ts",
+    "ingest:inspect-pdf": "ts-node src/ingestion/inspectPdf.ts",
+    "ingest:inspect-corpus": "ts-node src/ingestion/inspectCorpus.ts",
+    "ingest:plan-pdf-chunks": "ts-node src/ingestion/planPdfChunks.ts",
+    "ingest:build-lexical": "ts-node src/ingestion/buildLexicalIndex.ts",
+    "rag:evaluate-lexical": "ts-node src/ingestion/evaluateLexical.ts",
+    "ingest:crawl-mosdac": "ts-node src/ingestion/runMosdacCrawl.ts"
   },
   "keywords": [],
   "author": "",
@@ -17,9 +23,8 @@
   "dependencies": {
     "@langchain/community": "^0.3.48",
     "@langchain/core": "^0.3.62",
-    "@langchain/google-genai": "^0.2.14",
+    "@langchain/google-genai": "^0.2.18",
     "@langchain/langgraph": "^0.3.7",
-    "@langchain/langgraph-checkpoint-mongodb": "^0.0.6",
     "@langchain/mongodb": "^0.1.0",
     "@langchain/ollama": "^0.2.3",
     "@langchain/pinecone": "^0.2.0",
@@ -27,18 +32,22 @@
     "@types/cors": "^2.8.19",
     "@types/pdf-parse": "^1.1.5",
     "axios": "^1.10.0",
+    "cheerio": "1.0.0-rc.12",
     "cors": "^2.8.5",
     "crawlee": "^3.13.9",
     "dotenv": "^16.4.5",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.7.1",
     "langchain": "^0.3.29",
     "mammoth": "^1.9.1",
     "mongodb": "^6.17.0",
     "neo4j-driver": "^5.28.1",
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.17.1",
+    "playwright": "^1.64.0",
     "simplecrawler": "^1.1.9",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

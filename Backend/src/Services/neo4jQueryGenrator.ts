@@ -1,5 +1,5 @@
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { Neo4jGraph } from "@langchain/community/graphs/neo4j_graph";
 import * as fs from "fs/promises";
 import * as path from "path";

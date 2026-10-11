@@ -1,4 +1,4 @@
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { LLMGraphTransformer } from "@langchain/community/experimental/graph_transformers/llm";
 import { OllamaEmbeddings } from "@langchain/ollama";
@@ -107,7 +107,16 @@ async function pipeline(pdfDir: string) {
   console.log("🎉 Pipeline completed.");
 }
 
-pipeline(pdfFolder).catch((err) => {
-  console.error("❌ Pipeline error:", err);
-  process.exit(1);
-});
+if (require.main === module) {
+  if (!process.argv.includes("--execute")) {
+    process.stderr.write(
+      "Legacy Neo4j ingestion creates embeddings and writes graph data. Review the script and pass --execute explicitly to run it.\n"
+    );
+    process.exitCode = 2;
+  } else {
+    pipeline(pdfFolder).catch((error: unknown) => {
+      console.error("Legacy Neo4j ingestion failed:", error instanceof Error ? error.message : "unknown error");
+      process.exitCode = 1;
+    });
+  }
+}

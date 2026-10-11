@@ -1,327 +1,355 @@
-// Services/Retrival.ts
-import { AgentState } from "./Memory";
-import { pineconeVectorStore, neo4jDriver, chatLLM, embeddings } from "./initializeChatService";
+import { createHash } from "node:crypto";
 import { Document } from "@langchain/core/documents";
-import { PromptTemplate } from "@langchain/core/prompts";
-import { JsonOutputParser, StringOutputParser } from "@langchain/core/output_parsers"; // Import StringOutputParser
+import { AgentState } from "./Memory";
+import { BaseMessage } from "@langchain/core/messages";
+import { pineconeVectorStore } from "./initializeChatService";
+import { env } from "../config/env";
+import { assessExtractedText } from "../ingestion/textQuality";
+import { loadMosdacBm25Index } from "../ingestion/lexicalIndex";
+import { EmbeddingDimensionMismatchError, QUERY_EMBEDDING_MODEL } from "./cachedEmbeddings";
+import { logStageTiming, startTimer } from "../utils/performanceLog";
 
-// --- Helper for Reciprocal Rank Fusion (RRF) ---
-const RRF_K = 60; // A common constant, can be tuned
+const RRF_K = 60;
+// Over-fetch so the extraction-quality/provenance gate can discard noisy
+// legacy matches without starving the grounded context of readable passages.
+const DENSE_VECTOR_CANDIDATE_LIMIT = 40;
+const LEXICAL_CANDIDATE_LIMIT = 20;
+const VECTOR_RETURN_LIMIT = 8;
+const MAX_PARALLEL_QUERY_VARIANTS = 3;
+const DENSE_RESULT_CACHE_TTL_MS = 30_000;
+const DENSE_RESULT_CACHE_MAX_ENTRIES = 64;
+const DENSE_RESULT_CACHE_MAX_CHARACTERS = 100_000;
 
+interface RetrievalOutcome {
+  documents: Document[];
+  enabled: boolean;
+  error?: unknown;
+}
+
+interface CachedDenseResults {
+  documents: Document[];
+  scores: number[];
+  expiresAt: number;
+}
+
+const denseResultCache = new Map<string, CachedDenseResults>();
+const inFlightDenseQueries = new Map<string, Promise<CachedDenseResults>>();
+
+function denseScoreMetrics(scores: number[]): Record<string, number> {
+  const finiteScores = scores.filter(Number.isFinite);
+  if (finiteScores.length === 0) return {};
+  return {
+    scoredCandidates: finiteScores.length,
+    minScore: Number(Math.min(...finiteScores).toFixed(6)),
+    maxScore: Number(Math.max(...finiteScores).toFixed(6)),
+    meanScore: Number((finiteScores.reduce((sum, score) => sum + score, 0) / finiteScores.length).toFixed(6)),
+  };
+}
+
+function hasTraceableSource(document: Document): boolean {
+  const metadata = document.metadata ?? {};
+  const source = metadata.source ?? metadata.file_path ?? metadata.filepath ?? metadata.url;
+  if (typeof source !== "string" || source.trim().length === 0) return false;
+  return !/^(?:pinecone_vector|unknown(?: source)?|none|null)$/iu.test(source.trim());
+}
+
+function documentIdentity(document: Document): string {
+  const metadata = document.metadata ?? {};
+  const chunkId =
+    metadata.chunkId ??
+    metadata.chunk_id;
+  const contentHash = createHash("sha256")
+    .update(document.pageContent)
+    .digest("hex");
+  const source = metadata.source ?? metadata.file_path ?? metadata.filepath ?? metadata.url;
+  const page = metadata.pageNumber ?? metadata.page_number ?? metadata.page;
+  // Dense and lexical stores can assign unrelated IDs to the same chunk.
+  // Shared provenance plus exact content is the cross-store identity; keep
+  // store IDs as a fallback when provenance is incomplete.
+  if (
+    typeof source === "string" && source.trim().length > 0 &&
+    page !== undefined && page !== null && String(page).trim().length > 0
+  ) {
+    return `${source.trim()}#${String(page).trim()}:${contentHash}`;
+  }
+  const stableId = chunkId ?? metadata.id ?? document.id ?? null;
+  return stableId ? `${String(stableId)}:${contentHash}` : contentHash;
+}
+
+/** Reciprocal-rank fusion with stable, content-aware chunk de-duplication. */
 export function reciprocalRankFusion(
   rankedLists: Document[][],
-  k: number = RRF_K
+  k = RRF_K
 ): Document[] {
-  const scores: { [id: string]: number } = {};
-  const docMap: { [id: string]: Document } = {};
+  const scores = new Map<string, number>();
+  const documents = new Map<string, Document>();
 
   for (const list of rankedLists) {
-    for (let i = 0; i < list.length; i++) {
-      const doc = list[i];
-      // Create a unique identifier for the document for scoring purposes.
-      const docId = `${doc.pageContent}_${doc.metadata.source || 'unknown'}`;
-
-      if (!docMap[docId]) {
-        docMap[docId] = doc;
-      }
-
-      const rank = i + 1;
-      scores[docId] = (scores[docId] || 0) + 1.0 / (k + rank);
-    }
+    const listSeen = new Set<string>();
+    list.forEach((document, index) => {
+      const id = documentIdentity(document);
+      if (listSeen.has(id)) return;
+      listSeen.add(id);
+      documents.set(id, documents.get(id) ?? document);
+      scores.set(id, (scores.get(id) ?? 0) + 1 / (k + index + 1));
+    });
   }
 
-  const sortedDocs = Object.keys(scores)
-    .sort((a, b) => scores[b] - scores[a])
-    .map((docId) => docMap[docId]);
-
-  return sortedDocs;
+  return [...scores.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .map(([id]) => documents.get(id)!)
+    .filter(Boolean);
 }
 
-// --- Individual Retrieval Functions ---
-
-// This function performs a single vector search
-export async function retrieveFromVectorDB(
-  query: string // This function takes a single query string, as used by parallelRetrieval
-): Promise<Document[]> {
-  console.log(`Retrieving from Pinecone for query: "${query}"`);
+/** One bounded dense retrieval call; callers decide whether to fan out. */
+export async function retrieveFromVectorDB(query: string): Promise<RetrievalOutcome> {
   if (!pineconeVectorStore) {
-    console.warn(
-      "Pinecone Vector Store not initialized. Skipping vector retrieval."
-    );
-    return [];
+    return {
+      documents: [],
+      enabled: true,
+      error: new Error("Pinecone vector store is unavailable"),
+    };
   }
 
-  try {
-    const results = await pineconeVectorStore.similaritySearch(
-      query,
-      5 // Adjusted to retrieve top 5 documents for each sub-query for diversity
-    );
-    results.forEach(doc => doc.metadata.source = doc.metadata.source || 'pinecone_vector'); // Tag source
-    console.log(`Retrieved ${results.length} documents from Pinecone for query: "${query}"`);
-    return results;
-  } catch (e: any) {
-    console.error(`Error during vector retrieval for query "${query}": ${e.message || e}`);
-    return [];
+  const startedAt = startTimer();
+  const cacheKey = createHash("sha256")
+    .update(env.PINECONE_INDEX_NAME ?? "")
+    .update("\0")
+    .update(QUERY_EMBEDDING_MODEL)
+    .update("\0")
+    .update(query)
+    .digest("hex");
+  const now = Date.now();
+  const cached = denseResultCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    denseResultCache.delete(cacheKey);
+    denseResultCache.set(cacheKey, cached);
+    logStageTiming("dense_search", startedAt, {
+      outcome: "cache_hit",
+      candidates: cached.documents.length,
+      cacheEntries: denseResultCache.size,
+      ...denseScoreMetrics(cached.scores),
+    });
+    return { documents: cached.documents, enabled: true };
   }
-}
+  if (cached) denseResultCache.delete(cacheKey);
 
-// --- Neo4j Retrieval (Semantic Search Version) ---
-export async function retrieveFromNeo4j(
-  state: AgentState // Takes the full state to access question
-): Promise<Partial<AgentState>> { // Returns Partial<AgentState> to update neo4j_data
-  console.log("LangGraph Node: retrieveFromNeo4j (Semantic Search)");
-
-  if (!neo4jDriver) {
-    console.warn("Neo4j Driver not initialized. Skipping Neo4j retrieval.");
-    return { neo4j_data: "No Neo4j data available due to uninitialized driver." };
-  }
-  if (!embeddings) {
-    console.error("Embeddings instance not initialized for Neo4j semantic retrieval.");
-    return { neo4j_data: "Embeddings unavailable for Neo4j semantic search." };
-  }
-  
-  const session = neo4jDriver.session(); // Use session directly
-  let neo4jData = "";
-
-  try {
-    // 1️⃣ Embed the user’s question
-    const questionEmbedding = await embeddings.embedQuery(state.question);
-
-    // 2️⃣ Semantic search to get top matching nodes
-    // Ensure 'content_vector_index_object' exists and is populated in your Neo4j DB
-    const vectorResult = await session.run(
-      `
-      CALL db.index.vector.queryNodes('content_vector_index_object', 5, $embedding)
-      YIELD node, score
-      RETURN id(node) AS nodeId, labels(node) AS labels, score
-      `,
-      { embedding: questionEmbedding }
-    );
-
-    if (vectorResult.records.length === 0) {
-      console.log("No relevant nodes found in Neo4j semantic search.");
-      return { neo4j_data: "No relevant semantic nodes found in Neo4j." };
+  const inFlight = inFlightDenseQueries.get(cacheKey);
+  if (inFlight) {
+    try {
+      const results = await inFlight;
+      logStageTiming("dense_search", startedAt, {
+        outcome: "coalesced",
+        candidates: results.documents.length,
+        ...denseScoreMetrics(results.scores),
+      });
+      return { documents: results.documents, enabled: true };
+    } catch (error) {
+      logStageTiming("dense_search", startedAt, {
+        outcome: "coalesced_error",
+        errorType: error instanceof Error ? error.name : "unknown",
+      });
+      return { documents: [], enabled: true, error };
     }
+  }
 
-    // 3️⃣ For each retrieved node, fetch readable relations
-    neo4jData = "Neo4j Semantic Relations Retrieved:\n";
-
-    for (const [idx, record] of vectorResult.records.entries()) {
-      const nodeId = record.get("nodeId").toNumber?.() ?? record.get("nodeId");
-      const labels = record.get("labels");
-      const score = record.get("score");
-
-      neo4jData += `\n${idx + 1}) Node ID: ${nodeId}, Labels: ${labels.join(", ")}, Score: ${score}\n`;
-
-      const relationResult = await session.run(
-        `
-        MATCH (n)-[r]-(m)
-        WHERE id(n) = $nodeId
-        RETURN
-          type(r) AS relationType,
-          labels(m) AS targetLabels,
-          coalesce(m.name, m.title, m.id, "Unknown") AS targetName,
-          labels(n) AS sourceLabels,
-          coalesce(n.name, n.title, n.id, "Unknown") AS sourceName
-        LIMIT 10
-        `,
-        { nodeId }
+  const request = (async () => {
+    const candidates = await pineconeVectorStore!.similaritySearchWithScore(
+      query,
+      DENSE_VECTOR_CANDIDATE_LIMIT
+    );
+    const traceable = candidates.filter(([document]) => hasTraceableSource(document));
+    const readable = traceable.filter(
+      ([document]) => assessExtractedText(document.pageContent).status === "usable"
+    );
+    if (readable.length < candidates.length) {
+      console.info(
+        `Dense retrieval quality gate retained ${readable.length}/${candidates.length} candidates with readable text and source provenance.`
       );
-
-      if (relationResult.records.length === 0) {
-        neo4jData += `   No relations found.\n`;
-      } else {
-        relationResult.records.forEach((relRec) => {
-          const relType = relRec.get("relationType");
-          const sourceName = relRec.get("sourceName");
-          const targetName = relRec.get("targetName");
-
-          neo4jData += `   ${sourceName} --> ${relType} --> ${targetName}\n`;
-        });
+    }
+    const selected = readable.slice(0, VECTOR_RETURN_LIMIT);
+    const documents = selected.map(([document]) => document);
+    const scores = selected.map(([, score]) => score).filter(Number.isFinite);
+    const contentCharacters = documents.reduce(
+      (total, document) => total + document.pageContent.length,
+      0
+    );
+    // A short TTL limits stale results; per-entry and entry-count caps bound
+    // process memory even if a legacy chunk is unexpectedly large.
+    if (contentCharacters <= DENSE_RESULT_CACHE_MAX_CHARACTERS) {
+      denseResultCache.set(cacheKey, {
+        documents,
+        scores,
+        expiresAt: Date.now() + DENSE_RESULT_CACHE_TTL_MS,
+      });
+      while (denseResultCache.size > DENSE_RESULT_CACHE_MAX_ENTRIES) {
+        const oldestKey = denseResultCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        denseResultCache.delete(oldestKey);
       }
     }
-
-    console.log("Neo4j semantic relations retrieved successfully. =>>\n", neo4jData, "\n");
-
-  } catch (e: any) {
-    console.error(`Error during Neo4j semantic retrieval: ${e.message || e}`);
-    neo4jData = `Error retrieving semantic relations from Neo4j: ${e.message || e}`;
-  } finally {
-    if (session) {
-      await session.close();
-    }
-  }
-
-  return { neo4j_data: neo4jData };
-}
-
-// --- New Nodes for Advanced Retrieval (HyDE, Fanout, RRF) ---
-
-export async function queryTransformation(
-  state: AgentState
-): Promise<Partial<AgentState>> {
-  console.log("LangGraph Node: queryTransformation (HyDE & Fanout)");
-  if (!chatLLM) {
-    console.warn("LLM not initialized for query transformation.");
-    return { rewritten_queries: [state.question], hypothetical_doc_query: state.question };
-  }
-
-  interface TransformationOutput {
-    rewritten_queries: string[];
-    hypothetical_document: string;
-  }
-
-  const transformationPrompt = PromptTemplate.fromTemplate(`
-You are an AI assistant tasked with generating diverse search queries and a hypothetical document to improve information retrieval.
-Given the user's original question, perform two tasks:
-1. Generate 3-5 alternative phrasings or expansions of the original question. These should be distinct but semantically similar.
-2. Generate a concise, hypothetical ideal answer to the question. This answer should be what you would expect to see in a relevant document.
-
-You MUST format your response as a JSON object with two keys: "rewritten_queries" (an array of strings) and "hypothetical_document" (a string).
-Do NOT include any other text or formatting outside the JSON object.
-
-Example:
-Question: "What is the purpose of the Chandrayaan-3 mission?"
-Output:
-{
-  "rewritten_queries": [
-    "Chandrayaan-3 mission objectives",
-    "Goals of India's Chandrayaan-3 lunar mission",
-    "What was Chandrayaan-3 designed to achieve?",
-    "Key aims of Chandrayaan-3"
-  ],
-  "hypothetical_document": "The Chandrayaan-3 mission's primary purpose is to demonstrate safe lunar landing and roving capabilities, and to conduct in-situ scientific experiments on the lunar surface."
-}
-
-Question: {question}
-Output:
-`);
-
+    return { documents, scores, expiresAt: Date.now() + DENSE_RESULT_CACHE_TTL_MS };
+  })();
+  inFlightDenseQueries.set(cacheKey, request);
   try {
-    const chain = transformationPrompt.pipe(chatLLM).pipe(new JsonOutputParser<TransformationOutput>());
-    
-    const parsedResponse = await chain.invoke({ question: state.question });
-
-    const rewrittenQueries = parsedResponse.rewritten_queries || [];
-    const hypotheticalDoc = parsedResponse.hypothetical_document || "";
-
-    const allQueriesForSearch = [state.question, ...rewrittenQueries];
-    if (hypotheticalDoc) {
-        allQueriesForSearch.push(hypotheticalDoc);
+    const results = await request;
+    logStageTiming("dense_search", startedAt, {
+      outcome: "completed",
+      candidates: results.documents.length,
+      cacheEntries: denseResultCache.size,
+      ...denseScoreMetrics(results.scores),
+    });
+    return { documents: results.documents, enabled: true };
+  } catch (error) {
+    logStageTiming("dense_search", startedAt, {
+      outcome: "error",
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    return { documents: [], enabled: true, error };
+  } finally {
+    if (inFlightDenseQueries.get(cacheKey) === request) {
+      inFlightDenseQueries.delete(cacheKey);
     }
-
-    console.log("Generated queries for fanout:", allQueriesForSearch);
-    console.log("Generated hypothetical document:", hypotheticalDoc);
-
-    return {
-      rewritten_queries: allQueriesForSearch,
-      hypothetical_doc_query: hypotheticalDoc,
-    };
-  } catch (e: any) {
-    console.error(`Error during query transformation: ${e.message || e}`);
-    return {
-      rewritten_queries: [state.question], // Fallback to original question
-      hypothetical_doc_query: state.question, // Fallback
-    };
   }
 }
 
+/** Optional local BM25 path; it stays disabled until an explicit sidecar is configured. */
+export async function retrieveFromLexicalIndex(query: string): Promise<RetrievalOutcome> {
+  if (!env.MOSDAC_LEXICAL_INDEX_PATH) return { documents: [], enabled: false };
+  try {
+    const index = await loadMosdacBm25Index(env.MOSDAC_LEXICAL_INDEX_PATH);
+    if (!index) return { documents: [], enabled: true };
+    const documents = index.search(query, LEXICAL_CANDIDATE_LIMIT)
+      .filter(hasTraceableSource)
+      .filter((document) => assessExtractedText(document.pageContent).status === "usable")
+      .slice(0, VECTOR_RETURN_LIMIT);
+    return { documents, enabled: true };
+  } catch (error) {
+    return { documents: [], enabled: true, error };
+  }
+}
+
+function messageText(message: BaseMessage): string {
+  if (typeof message.content === "string") return message.content.trim();
+  if (!Array.isArray(message.content)) return "";
+  return message.content
+    .flatMap((part) =>
+      typeof part === "object" && part !== null && "text" in part && typeof part.text === "string"
+        ? [part.text]
+        : []
+    )
+    .join(" ")
+    .trim();
+}
+
+function isClearFollowUp(question: string): boolean {
+  const normalized = question.trim();
+  return [
+    /^(?:and\b|also\b|what about\b|how about\b|what is (?:its|their|that|this)\b|what are (?:its|their|those|these)\b|what was (?:its|their|that)\b|how (?:does|do|did) (?:it|they|that|this)\b|why (?:is|was|does|did) (?:it|that|this)\b|can you (?:explain|elaborate) (?:that|it)\b|tell me more\b)/iu,
+    /^(?:aur\b|(?:is|us)ke (?:baare|bare) mein\b|is(?:ka|ki|ke)\b|yeh?\b|woh\b|us(?:ka|ki|ke)\b|aur bata(?:o|iye)\b|kya (?:yeh?|woh|is(?:ka|ki|ke)|us(?:ka|ki|ke))\b)/iu,
+    /^(?:और\b|इसके बारे में\b|इस(?:का|की|के|में)\b|यह\b|ये\b|वह\b|उस(?:का|की|के|में)\b|और बत(?:ाओ|ाइए|ा दें)\b|क्या (?:यह|ये|वह|इसका|इसकी|इसके|उसका|उसकी|उसके)\b)/u,
+    /^(?:y\b|también\b|tambien\b|qué hay de\b|que hay de\b|y qué\b|y que\b|su\b|eso\b|eso qué\b)/iu,
+    /^(?:et\b|aussi\b|qu['’]en est-il\b|son\b|sa\b|ça\b|cela\b|ce\b)/iu,
+    /^(?:und\b|auch\b|was ist mit\b|sein\b|ihre?\b|dies(?:e|er|es)?\b|das\b)/iu,
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function lastHumanQuestion(history: BaseMessage[]): string | undefined {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]!;
+    if (message.getType() !== "human") continue;
+    const text = messageText(message);
+    if (text) return text;
+  }
+  return undefined;
+}
+
+/** Add a previous-question anchor only for recognizable short follow-ups. */
+export function queryTransformation(
+  state: AgentState
+): Partial<AgentState> {
+  const question = state.question.trim();
+  const priorQuestion = lastHumanQuestion(state.chat_history ?? []);
+  const isContextualFollowUp = Boolean(
+    priorQuestion &&
+      isClearFollowUp(question)
+  );
+  const retrievalQuery = isContextualFollowUp
+    ? `Earlier user question: ${priorQuestion!.slice(0, 400)}\nCurrent follow-up: ${question}`
+    : question;
+
+  return { rewritten_queries: [retrievalQuery], hypothetical_doc_query: null };
+}
+
+/** Run a bounded number of independent query variants concurrently. */
 export async function parallelRetrieval(
   state: AgentState
 ): Promise<Partial<AgentState>> {
-  console.log("LangGraph Node: parallelRetrieval");
-  const queriesToSearch = state.rewritten_queries || [state.question];
+  const variants = [...new Set(state.rewritten_queries ?? [state.question])]
+    .filter((query) => query.trim().length > 0)
+    .slice(0, MAX_PARALLEL_QUERY_VARIANTS);
+  if (variants.length === 0) {
+    return { raw_pinecone_results: [], raw_lexical_results: [] };
+  }
 
-  const retrievalPromises = queriesToSearch.map(query => retrieveFromVectorDB(query));
-
+  const startedAt = startTimer();
   try {
-    const rawResults = await Promise.all(retrievalPromises);
-    console.log(`Completed ${rawResults.length} parallel retrievals.`);
-    return { raw_pinecone_results: rawResults };
-  } catch (e: any) {
-    console.error(`Error during parallel retrieval: ${e.message || e}`);
-    return { raw_pinecone_results: [] };
-  }
-}
-
-export async function rrfReRanking(
-  state: AgentState
-): Promise<Partial<AgentState>> {
-  
-  console.log("LangGraph Node: rrfReRanking");
-  if (!state.raw_pinecone_results || state.raw_pinecone_results.length === 0) {
-    console.warn("No raw Pinecone results to re-rank with RRF.");
-    return { rrf_ranked_docs: [] };
-  }
-
-  const rrfResults = reciprocalRankFusion(state.raw_pinecone_results);
-  console.log(`Re-ranked ${rrfResults.length} documents using RRF.`);
-  return { rrf_ranked_docs: rrfResults };
-}
-
-// New function for query classification
-// Services/Retrival.ts
-// ... (rest of your imports and code above classifyQuery) ...
-
-// New function for query classification
-export async function classifyQuery(
-  state: AgentState
-): Promise<Partial<AgentState>> {
-  console.log("LangGraph Node: classifyQuery (Routing)");
-  if (!chatLLM) {
-    console.warn("LLM not initialized for query classification.");
-    return { llm_response: "other" }; // Default to "other" if LLM is not ready
-  }
-
-  const classificationPrompt = PromptTemplate.fromTemplate(`
-You are an AI assistant whose ONLY task is to classify user queries into one of three predefined categories.
-You MUST respond with ONLY ONE WORD, which is the category name. No other text, no punctuation, no explanations.
-
-The categories are:
-- "greeting": If the user's question is a simple salutation or friendly opening (e.g., "Hi", "Hello", "How are you?", "Good morning", "Hey there").
-- "mosdac": If the user's question is directly or indirectly related to MOSDAC, satellite data, space missions, ISRO, Earth observation, or any scientific/technical information you would find in a MOSDAC context.
-- "other": If the user's question falls into none of the above categories (e.g., general knowledge, personal questions, completely irrelevant topics).
-
-Examples:
-Question: "Hi there!"
-Classification: greeting
-
-Question: "Tell me about INSAT-3D."
-Classification: mosdac
-
-Question: "What's the weather like today?"
-Classification: other
-
-Question: "How do I make a cake?"
-Classification: other
-
-Question: "What is MOSDAC?"
-Classification: mosdac
-
-Question: "Good afternoon, AstroLynx!"
-Classification: greeting
-
-Question: {question}
-Classification:
-`);
-
-  try {
-    const chain = classificationPrompt.pipe(chatLLM).pipe(new StringOutputParser());
-    
-    const rawResponse = await chain.invoke({ question: state.question });
-    
-    let classification = rawResponse ? rawResponse.toLowerCase().trim() : "other";
-
-    // Reinforce validation: ensure it's one of the expected categories
-    if (!["greeting", "mosdac", "other"].includes(classification)) {
-      console.warn(`LLM returned unexpected classification: "${classification}". Forcing to "other".`);
-      classification = "other"; // Force to "other" if it's not one of the expected
+    const rankedResults = await Promise.all(variants.map((query) => Promise.all([
+      retrieveFromVectorDB(query),
+      retrieveFromLexicalIndex(query),
+    ])));
+    const denseOutcomes = rankedResults.map(([dense]) => dense);
+    const lexicalOutcomes = rankedResults.map(([, lexical]) => lexical);
+    const enabledOutcomes = [...denseOutcomes, ...lexicalOutcomes].filter((outcome) => outcome.enabled);
+    const failedOutcomes = enabledOutcomes.filter((outcome) => outcome.error !== undefined);
+    const dimensionError = failedOutcomes.find(
+      (outcome) => outcome.error instanceof EmbeddingDimensionMismatchError
+    )?.error;
+    if (dimensionError instanceof Error) throw dimensionError;
+    if (enabledOutcomes.length > 0 && failedOutcomes.length === enabledOutcomes.length) {
+      throw new Error("All configured retrieval sources failed");
     }
-
-    console.log(`Query classified as: "${classification}"`);
-    return { llm_response: classification };
-  } catch (e: any) {
-    console.error(`Error during query classification: ${e.message || e}`);
-    return { llm_response: "other" }; // Fallback to "other" on error
+    for (const outcome of failedOutcomes) {
+      console.warn("Retrieval source failed:", outcome.error instanceof Error ? outcome.error.name : "unknown");
+    }
+    const denseResults = denseOutcomes.map((outcome) => outcome.documents);
+    const lexicalResults = lexicalOutcomes.map((outcome) => outcome.documents);
+    logStageTiming("retrieval", startedAt, {
+      queryVariants: variants.length,
+      denseCandidates: denseResults.reduce((total, documents) => total + documents.length, 0),
+      lexicalCandidates: lexicalResults.reduce((total, documents) => total + documents.length, 0),
+      lexicalEnabled: Boolean(env.MOSDAC_LEXICAL_INDEX_PATH),
+      failedSources: failedOutcomes.length,
+      outcome: failedOutcomes.length > 0 ? "degraded" : "completed",
+    });
+    return {
+      raw_pinecone_results: denseResults,
+      raw_lexical_results: lexicalResults,
+    };
+  } catch (error) {
+    logStageTiming("retrieval", startedAt, {
+      queryVariants: variants.length,
+      outcome: "error",
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    throw error;
   }
+}
+
+export function rrfReRanking(state: AgentState): Partial<AgentState> {
+  const lists = [
+    ...(state.raw_pinecone_results ?? []),
+    ...(state.raw_lexical_results ?? []),
+  ];
+  return { rrf_ranked_docs: reciprocalRankFusion(lists) };
+}
+
+/** Greeting detection is deterministic and avoids a model call before retrieval. */
+export function classifyQuery(state: AgentState): Partial<AgentState> {
+  const normalized = state.question.trim().toLocaleLowerCase();
+  const greeting =
+    /^(?:hi|hello|hey|good morning|good afternoon|good evening|how are you|hola|buenos días|buenos dias|buenas tardes|buenas noches|qué tal|que tal|bonjour|bonsoir|salut|comment ça va|comment ca va|hallo|guten morgen|guten tag|guten abend|wie geht(?:'|’)s|wie geht es|namaste|नमस्ते|नमस्कार)(?:\s+(?:astrolynx|there))?[.!?\s؟。！]*$/iu.test(
+      normalized
+    );
+  return { llm_response: greeting ? "greeting" : "mosdac" };
 }

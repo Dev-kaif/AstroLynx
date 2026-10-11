@@ -1,0 +1,8 @@
+packages:
+  - Backend
+  - astrolynx-chatbot Frontend
+
+allowBuilds:
+  sharp: true
+  protobufjs: true
+  unrs-resolver: false

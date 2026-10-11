@@ -1,33 +1,31 @@
 // Services/LangGraphChain.ts
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
+import type { RunnableConfig } from "@langchain/core/runnables";
+import { BaseMessage } from "@langchain/core/messages";
+import { Document } from "@langchain/core/documents";
 import { invokeLLM, handleSimpleResponse } from "./ChatWithLLM";
-import { AgentState, buildContext } from "./Memory";
+import { AgentState, EvidenceCitation, buildContext } from "./Memory";
 import {
   queryTransformation,
   parallelRetrieval,
   rrfReRanking,
-  retrieveFromNeo4j,
   classifyQuery,
 } from "./Retrival";
 
-import { checkpointer } from "./initializeChatService"; // Import checkpointer
 
-import { translateToEnglish, translateToTargetLanguage } from "./translateText";
 import { convertTextToSpeech } from "./textToSpeech";
 
 const StateAnnotation = Annotation.Root({
   question: Annotation<string>(),
-  chat_history: Annotation<any[]>({
-    value: (left, right) => left.concat(right),
-    default: () => [],
-  }),
-  retrieved_docs: Annotation<any[]>({
+  chat_history: Annotation<BaseMessage[]>({
+    // main.chat() reloads the bounded, authoritative history from MongoDB for
+    // every turn. Appending checkpoint state here duplicates prior turns.
     value: (_, right) => right,
     default: () => [],
   }),
-  neo4j_data: Annotation<string | null>({
+  retrieved_docs: Annotation<Document[]>({
     value: (_, right) => right,
-    default: () => null,
+    default: () => [],
   }),
   llm_response: Annotation<string | null>({
     value: (_, right) => right,
@@ -45,11 +43,17 @@ const StateAnnotation = Annotation.Root({
     value: (_, right) => right,
     default: () => null,
   }),
-  raw_pinecone_results: Annotation<any[][]>({
-    value: (left, right) => left.concat(right),
+  raw_pinecone_results: Annotation<Document[][]>({
+    // Retrieval is performed anew for each user turn; old ranked lists must
+    // not leak into this turn's RRF or evidence context.
+    value: (_, right) => right,
     default: () => [],
   }),
-  rrf_ranked_docs: Annotation<any[]>({
+  raw_lexical_results: Annotation<Document[][]>({
+    value: (_, right) => right,
+    default: () => [],
+  }),
+  rrf_ranked_docs: Annotation<Document[]>({
     value: (_, right) => right,
     default: () => [],
   }),
@@ -69,70 +73,15 @@ const StateAnnotation = Annotation.Root({
     value: (_, right) => right,
     default: () => null,
   }),
+  citations: Annotation<EvidenceCitation[]>({
+    value: (_, right) => right,
+    default: () => [],
+  }),
 });
 
-const translateUserInputNode = async (
-  state: AgentState
-): Promise<Partial<AgentState>> => {
-  console.log("LangGraph Node: translateUserInputNode");
-  const { question, targetLanguage } = state;
-
-  if (targetLanguage && targetLanguage !== "en" && question) {
-    try {
-      const translatedQuestion = await translateToEnglish(
-        question,
-        targetLanguage
-      );
-      console.log(
-        `[Graph] User input translated to English: "${translatedQuestion.substring(
-          0,
-          50
-        )}..."`
-      );
-      return { question: translatedQuestion };
-    } catch (error) {
-      console.error(
-        "[Graph] Error translating user input to English, proceeding with original:",
-        error
-      );
-      return { question: question };
-    }
-  }
-  return { question: question };
-};
-
-const translateOutputNode = async (
-  state: AgentState
-): Promise<Partial<AgentState>> => {
-  console.log("LangGraph Node: translateOutputNode");
-  const { llm_response, targetLanguage } = state;
-
-  if (targetLanguage && targetLanguage !== "en" && llm_response) {
-    try {
-      const translatedResponse = await translateToTargetLanguage(
-        llm_response,
-        targetLanguage
-      );
-      console.log(
-        `[Graph] LLM response translated to ${targetLanguage}: "${translatedResponse.substring(
-          0,
-          50
-        )}..."`
-      );
-      return { llm_response: translatedResponse };
-    } catch (error) {
-      console.error(
-        "[Graph] Error translating LLM output to target language, proceeding with English:",
-        error
-      );
-      return { llm_response: llm_response };
-    }
-  }
-  return { llm_response: llm_response };
-};
-
 const generateAudioNode = async (
-  state: AgentState
+  state: AgentState,
+  config: RunnableConfig
 ): Promise<Partial<AgentState>> => {
   console.log("LangGraph Node: generateAudioNode");
   const { llm_response, targetLanguage } = state;
@@ -145,7 +94,9 @@ const generateAudioNode = async (
       // Directly call the core TTS conversion function
       const audioData = await convertTextToSpeech(
         llm_response,
-        targetLanguage || "en"
+        targetLanguage || "en",
+        undefined,
+        config.signal
       ); // Provide a default language if targetLanguage is null
 
       if (audioData) {
@@ -155,9 +106,10 @@ const generateAudioNode = async (
         console.warn("[Graph] TTS generated no audio data.");
         return { audioData: null };
       }
-    } catch (ttsError: any) {
+    } catch (ttsError: unknown) {
+      if (config.signal?.aborted) throw ttsError;
       console.error(
-        `[Graph] Error generating speech: ${ttsError.message || ttsError}`
+        `[Graph] Speech generation failed: ${ttsError instanceof Error ? ttsError.name : "unknown error"}`
       );
       return { audioData: null };
     }
@@ -188,22 +140,7 @@ const routeQuery = (state: AgentState): string => {
   return "handleSimpleResponse";
 };
 
-const routeAfterStart = (state: AgentState): string => {
-  if (state.targetLanguage && state.targetLanguage !== "en") {
-    console.log("[Graph Router] Routing to translateUserInputNode.");
-    return "translateUserInput";
-  }
-  console.log(
-    "[Graph Router] Routing directly to classifyQuery (no input translation)."
-  );
-  return "classifyQuery";
-};
-
 const routeAfterLLM = (state: AgentState): string => {
-  if (state.targetLanguage && state.targetLanguage !== "en") {
-    console.log("[Graph Router] Routing to translateOutputNode.");
-    return "translateOutput";
-  }
   if (state.isAudioMode) {
     console.log(
       "[Graph Router] Routing directly to generateAudioNode (no output translation, audio mode active)."
@@ -216,37 +153,18 @@ const routeAfterLLM = (state: AgentState): string => {
   return END;
 };
 
-const routeAfterOutputTranslation = (state: AgentState): string => {
-  if (state.isAudioMode) {
-    console.log(
-      "[Graph Router] Routing to generateAudioNode (audio mode active)."
-    );
-    return "generateAudio";
-  }
-  console.log("[Graph Router] Routing to END (no audio).");
-  return END;
-};
-
 // --- LangGraph Workflow Definition ---
 let workflow = new StateGraph(StateAnnotation)
-  .addNode("translateUserInput", translateUserInputNode)
   .addNode("classifyQuery", classifyQuery)
   .addNode("handleSimpleResponse", handleSimpleResponse)
   .addNode("queryTransformation", queryTransformation)
   .addNode("parallelRetrieval", parallelRetrieval)
   .addNode("rrfReRanking", rrfReRanking)
-  .addNode("retrieveFromNeo4j", retrieveFromNeo4j)
   .addNode("buildContext", buildContext)
   .addNode("invokeLLM", invokeLLM)
-  .addNode("translateOutput", translateOutputNode)
   .addNode("generateAudio", generateAudioNode);
 
-workflow.addConditionalEdges(START, routeAfterStart, {
-  translateUserInput: "translateUserInput",
-  classifyQuery: "classifyQuery",
-});
-
-workflow.addEdge("translateUserInput", "classifyQuery");
+workflow.addEdge(START, "classifyQuery");
 
 workflow.addConditionalEdges("classifyQuery", routeQuery, {
   handleSimpleResponse: "handleSimpleResponse",
@@ -254,40 +172,25 @@ workflow.addConditionalEdges("classifyQuery", routeQuery, {
 });
 
 workflow.addConditionalEdges("handleSimpleResponse", routeAfterLLM, {
-  translateOutput: "translateOutput",
   generateAudio: "generateAudio",
   [END]: END,
 });
 
 workflow.addEdge("queryTransformation", "parallelRetrieval");
-workflow.addEdge("queryTransformation", "retrieveFromNeo4j");
 workflow.addEdge("parallelRetrieval", "rrfReRanking");
 workflow.addEdge("rrfReRanking", "buildContext");
-workflow.addEdge("retrieveFromNeo4j", "buildContext");
 workflow.addEdge("buildContext", "invokeLLM");
 
 workflow.addConditionalEdges("invokeLLM", routeAfterLLM, {
-  translateOutput: "translateOutput",
-  generateAudio: "generateAudio",
-  [END]: END,
-});
-
-workflow.addConditionalEdges("translateOutput", routeAfterOutputTranslation, {
   generateAudio: "generateAudio",
   [END]: END,
 });
 
 workflow.addEdge("generateAudio", END);
 
-export let graph: any;
+export let graph: ReturnType<typeof workflow.compile> | null = null;
 
 export function compileGraph() {
-  if (!checkpointer) {
-    console.error("Checkpointer is not initialized. Cannot compile graph.");
-    return;
-  }
-  graph = workflow.compile({
-    checkpointer: checkpointer,
-  });
-  console.log("LangGraph compiled with checkpointer.");
+  graph = workflow.compile();
+  console.log("LangGraph compiled without persistent turn checkpoints.");
 }
