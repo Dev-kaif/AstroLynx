@@ -894,6 +894,21 @@ Resume crawler work when needed for RAG evaluation/data sources: validate the re
 - Verification: API TypeScript check, frontend TypeScript check, and `git diff --check` passed. No live model request or tests were run. Previously saved assistant messages have already been persisted after pruning and will not regain omitted paragraphs; new answers use the corrected validator.
 - Files changed: `Backend/src/Services/ChatWithLLM.ts`, `astrolynx-chatbot Frontend/components/chat-interface.tsx`, and `workdone.md`.
 
+## Latest completed work — answer assistant identity questions without MOSDAC retrieval (2026-10-11)
+
+- The user reported that “tell more about yourself” returned the grounded-answer fallback. The classifier previously sent every non-greeting question into MOSDAC retrieval, so a question about AstroLynx itself could only pass if unrelated source chunks happened to support it.
+- Added lightweight recognition for common English, Hinglish, and Hindi assistant-directed questions and route them to a separate conversational Gemini node, without MOSDAC retrieval or citation requirements. The model generates the actual response from an instruction describing AstroLynx's role, capabilities, and limits; the answer is not a fixed string. The selected response language is passed to the model.
+- MOSDAC factual questions remain on the retrieval and citation-validation path. The new conversational node handles provider failures with the existing localized generation fallback and logs safe provider error details.
+- Verification: API TypeScript check and `git diff --check` passed. No Gemini request was made. Files changed: `Backend/src/Services/Retrival.ts`, `Backend/src/Services/LangGraphChain.ts`, `Backend/src/Services/ChatWithLLM.ts`, and `workdone.md`.
+
+## Latest completed work — write new-device setup and run guide (2026-10-11)
+
+- Added `RUN.md` with Node 24/pnpm setup, clone/install commands, backend/frontend environment configuration, required MongoDB/Gemini/Pinecone/Ollama dependencies, `nomic-embed-text` setup, two-terminal development startup, health check, account signup, troubleshooting, verification commands, and new-device credential/data handoff checklist.
+- Clarified that starting the web/API process does not establish provider readiness, and that useful grounded answers require access to the existing populated, embedding-compatible Pinecone index; the guide explicitly avoids suggesting an unreviewed re-embed.
+- Corrected `Backend/.env.example` so unused Neo4j settings are blank (the validator requires all-or-none configuration) and the message collection setting uses the actual `MONGO_MESSAGES_COLLECTION_NAME` variable. Added a README link to the new run guide.
+- Verification: `git diff --check` passed. No services, migrations, embeddings, or tests were run.
+- Files changed: `RUN.md`, `Backend/.env.example`, `README.md`, and `workdone.md`.
+
 ## How to continue safely
 
 - Read `REWRITE_PLAN.md` and this log before making changes.

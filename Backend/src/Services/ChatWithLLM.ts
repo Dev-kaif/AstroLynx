@@ -334,3 +334,33 @@ export async function handleSimpleResponse(
 
   return { llm_response: "Please ask a question about MOSDAC or satellite data." };
 }
+
+/** Generate conversational assistant-directed replies without imposing RAG citations. */
+export async function answerAssistantQuestion(
+  state: AgentState,
+  config: RunnableConfig
+): Promise<Partial<AgentState>> {
+  if (!chatLLM) throw new Error("Chat LLM not initialized.");
+  const language = RESPONSE_LANGUAGE_INSTRUCTIONS[state.targetLanguage ?? "en"] ??
+    RESPONSE_LANGUAGE_INSTRUCTIONS.en!;
+  const messages: BaseMessage[] = [
+    new SystemMessage(
+      "You are AstroLynx, an AI assistant in a MOSDAC-focused chat application. Answer the user's question about your identity, purpose, or capabilities in a friendly, natural way. Explain that you can help with MOSDAC, satellite missions, and Earth-observation data using the information available in this application. Be honest that you are an AI and can make mistakes. Do not claim personal experiences, live access, or abilities that were not provided. Keep the answer concise and respond directly. " + language
+    ),
+    ...(state.chat_history ?? []),
+    new HumanMessage(state.question),
+  ];
+  try {
+    const answer = await chatLLM.invoke(messages, { signal: config.signal });
+    const content = typeof answer.content === "string"
+      ? answer.content
+      : answer.content
+        .flatMap((part) => typeof part === "object" && part !== null && "text" in part && typeof part.text === "string" ? [part.text] : [])
+        .join("\n");
+    return { llm_response: content.trim() || fallbackResponse(state.targetLanguage, "generation"), citations: [] };
+  } catch (error: unknown) {
+    if (config.signal?.aborted) throw error;
+    console.error("Assistant-directed response generation failed:", JSON.stringify(providerErrorDetails(error)));
+    return { llm_response: fallbackResponse(state.targetLanguage, "generation"), citations: [] };
+  }
+}

@@ -4,6 +4,7 @@ AstroLynx is being rewritten as a MOSDAC assistant with a focus on trustworthy d
 
 ## Project status
 
+- New-device setup and local run instructions are in [`RUN.md`](./RUN.md).
 - The original UI lives in `astrolynx-chatbot Frontend/`.
 - The original API lives in `Backend/`.
 - The rewrite plan is [`REWRITE_PLAN.md`](./REWRITE_PLAN.md).

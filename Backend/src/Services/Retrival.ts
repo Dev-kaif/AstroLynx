@@ -347,9 +347,13 @@ export function rrfReRanking(state: AgentState): Partial<AgentState> {
 /** Greeting detection is deterministic and avoids a model call before retrieval. */
 export function classifyQuery(state: AgentState): Partial<AgentState> {
   const normalized = state.question.trim().toLocaleLowerCase();
+  const assistantDirectedQuestion =
+    /^(?:tell(?: me)?(?: a bit)?(?: more)? about yourself|say something about yourself|who are you|what can you do|introduce yourself|describe yourself)[.!?\s]*$/iu.test(normalized) ||
+    /^(?:apne baare mein bata(?:o|iye)|aap kaun hain|tum kaun ho|aap kya kar sakte hain)[.!?\s]*$/iu.test(normalized) ||
+    /^(?:अपने बारे में बताइ?ए|तुम कौन हो|आप कौन हैं|आप क्या कर सकते हैं)[.!?\s।!?]*$/u.test(normalized);
   const greeting =
     /^(?:hi|hello|hey|good morning|good afternoon|good evening|how are you|hola|buenos días|buenos dias|buenas tardes|buenas noches|qué tal|que tal|bonjour|bonsoir|salut|comment ça va|comment ca va|hallo|guten morgen|guten tag|guten abend|wie geht(?:'|’)s|wie geht es|namaste|नमस्ते|नमस्कार)(?:\s+(?:astrolynx|there))?[.!?\s؟。！]*$/iu.test(
       normalized
     );
-  return { llm_response: greeting ? "greeting" : "mosdac" };
+  return { llm_response: assistantDirectedQuestion ? "assistant_question" : greeting ? "greeting" : "mosdac" };
 }

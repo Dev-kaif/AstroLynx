@@ -3,7 +3,7 @@ import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { BaseMessage } from "@langchain/core/messages";
 import { Document } from "@langchain/core/documents";
-import { invokeLLM, handleSimpleResponse } from "./ChatWithLLM";
+import { invokeLLM, handleSimpleResponse, answerAssistantQuestion } from "./ChatWithLLM";
 import { AgentState, EvidenceCitation, buildContext } from "./Memory";
 import {
   queryTransformation,
@@ -128,6 +128,8 @@ const routeQuery = (state: AgentState): string => {
 
   if (classification === "greeting") {
     return "handleSimpleResponse";
+  } else if (classification === "assistant_question") {
+    return "answerAssistantQuestion";
   } else if (classification === "other") {
     return "handleSimpleResponse";
   } else if (classification === "mosdac") {
@@ -157,6 +159,7 @@ const routeAfterLLM = (state: AgentState): string => {
 let workflow = new StateGraph(StateAnnotation)
   .addNode("classifyQuery", classifyQuery)
   .addNode("handleSimpleResponse", handleSimpleResponse)
+  .addNode("answerAssistantQuestion", answerAssistantQuestion)
   .addNode("queryTransformation", queryTransformation)
   .addNode("parallelRetrieval", parallelRetrieval)
   .addNode("rrfReRanking", rrfReRanking)
@@ -168,10 +171,16 @@ workflow.addEdge(START, "classifyQuery");
 
 workflow.addConditionalEdges("classifyQuery", routeQuery, {
   handleSimpleResponse: "handleSimpleResponse",
+  answerAssistantQuestion: "answerAssistantQuestion",
   queryTransformation: "queryTransformation",
 });
 
 workflow.addConditionalEdges("handleSimpleResponse", routeAfterLLM, {
+  generateAudio: "generateAudio",
+  [END]: END,
+});
+
+workflow.addConditionalEdges("answerAssistantQuestion", routeAfterLLM, {
   generateAudio: "generateAudio",
   [END]: END,
 });
