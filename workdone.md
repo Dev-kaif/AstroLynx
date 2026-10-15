@@ -909,6 +909,15 @@ Resume crawler work when needed for RAG evaluation/data sources: validate the re
 - Verification: `git diff --check` passed. No services, migrations, embeddings, or tests were run.
 - Files changed: `RUN.md`, `Backend/.env.example`, `README.md`, and `workdone.md`.
 
+## Latest completed work — add one-command Docker Compose stack (2026-10-16)
+
+- Added `docker-compose.yml` with a local MongoDB container, Ollama server, one-shot `nomic-embed-text` model pull, compiled API container, and compiled Next.js web container. Startup dependencies wait for MongoDB/Ollama health, model download completion, and API health in order.
+- Added API and frontend Dockerfiles using the workspace's Node 24 and pnpm 11.5.3 versions, plus `.dockerignore` exclusions for secrets, dependencies, generated outputs, private corpus files, references, and screenshots.
+- Published only localhost ports 27017, 5001, and 3000. Compose uses persistent named volumes for MongoDB and Ollama. Normal `docker compose down` retains both; `down --volumes` is documented as a data/model destructive reset. Gemini and Pinecone remain external and are configured through `Backend/.env`.
+- Expanded `RUN.md` with `docker compose up --build -d`, `docker compose down`, logs/status checks, first-run model download behavior, persistent-volume notes, and the distinction between Docker and native setup. Docker route requires no host Node/pnpm/MongoDB/Ollama installation. The API environment example was already normalized in the prior setup-guide work.
+- Validation: `docker compose config --quiet` and `git diff --check` both passed. No image builds, containers, database writes, or provider requests were run.
+- Files changed: `docker-compose.yml`, `Backend/Dockerfile`, `astrolynx-chatbot Frontend/Dockerfile`, `.dockerignore`, `RUN.md`, and `workdone.md`.
+
 ## How to continue safely
 
 - Read `REWRITE_PLAN.md` and this log before making changes.

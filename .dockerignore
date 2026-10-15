@@ -1,0 +1,13 @@
+.git
+.pnpm-store
+**/node_modules
+**/.next
+**/dist
+**/.env*
+**/*.tsbuildinfo
+references
+Backend/downloaded_docs
+Backend/mosac-data
+Backend/storage
+Backend/Screenshot*.png
+*.pdf

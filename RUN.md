@@ -5,18 +5,17 @@ This guide starts the existing AstroLynx web app and API in local development. I
 ## 1. What you need
 
 - Git
-- Node.js 24 (the repository pins this major version in `.nvmrc` and requires `>=24 <25`)
-- pnpm 11.5.3
-- An Ollama service with the `nomic-embed-text` model
-- A MongoDB database/Atlas URI
 - A Gemini API key
 - A Pinecone API key and the existing populated dense index used by this project
+- Docker Desktop / Docker Engine with the Compose plugin **or** the local runtime requirements below
+
+For the Docker Compose route, Docker runs MongoDB and Ollama for you; you do not need Node.js, pnpm, a host MongoDB, or a host Ollama installation. For the native route, install Node.js 24, pnpm 11.5.3, MongoDB, and Ollama with the model specified below.
 
 The current chat flow needs MongoDB, Gemini, Pinecone, and Ollama. The browser app and API can start without connecting to those providers; authentication requires MongoDB, and the first chat request initializes the RAG providers.
 
 The Pinecone index must be the project’s existing index with MOSDAC content and query vectors compatible with `nomic-embed-text` (768 dimensions in the current setup). An empty index or merely matching vector dimensions does not provide usable retrieval. Do not create a replacement index or re-embed the corpus as part of local setup.
 
-## 2. Install Node.js 24 and pnpm
+## 2. Install Node.js 24 and pnpm (native route only)
 
 Using `nvm` on macOS/Linux:
 
@@ -35,7 +34,7 @@ pnpm --version
 
 Node should report version 24.x and pnpm should report 11.5.3. Other Node version managers can also use the repository’s `.nvmrc` value (`24`).
 
-## 3. Clone and install the project
+## 3. Clone and install the project (native route)
 
 Replace `<repository-url>` with the Git URL for this project:
 
@@ -86,7 +85,7 @@ The API’s default CORS origin is `http://localhost:3000`. If the web app uses 
 | Setting | Needed for | Notes |
 |---|---|---|
 | `GEMINI_API_KEY` | Chat answers and generated chat titles | Required for chat generation. |
-| `MONGO_URI`, `MONGO_DB_NAME`, `MONGO_COLLECTION_NAME` | Signup/login and chat history | All three are required together. Mongo collections and indexes are created lazily. |
+| `MONGO_URI`, `MONGO_DB_NAME`, `MONGO_COLLECTION_NAME` | Signup/login and chat history | Native route: set all three. Compose overrides the URI to its local MongoDB container; set the database and collection names as usual. |
 | `PINECONE_API_KEY`, `PINECONE_INDEX_NAME` | MOSDAC retrieval | Must point to an existing compatible dense index containing the project’s documents. |
 | Ollama at `OLLAMA_BASE_URL` | Query embeddings | Defaults to `http://localhost:11434`; the `nomic-embed-text` model must be available. |
 | `MONGO_MESSAGES_COLLECTION_NAME` | New chat-message storage | Optional; defaults to `astrolynx_chat_messages_v2`. |
@@ -162,6 +161,35 @@ Expected response:
 This endpoint only confirms the API process is listening; it does not check MongoDB, Gemini, Pinecone, or Ollama. The first signup/login request connects to MongoDB. The first chat request initializes the RAG services and then checks the Pinecone index and Ollama query embedding.
 
 Once signed in, ask a question about a fact in the indexed MOSDAC corpus. Watch the API terminal for retrieval and generation logs. A good first check is a simple, corpus-covered question such as “What is INSAT-3D used for?” The answer depends on the actual contents and quality of the Pinecone index.
+
+## Run the whole local stack with Docker Compose
+
+The repository includes `docker-compose.yml` and Dockerfiles for a containerized local stack. Install and start Docker Desktop (or Docker Engine with the Compose plugin), then create and configure `Backend/.env` as described above. Docker Compose starts MongoDB, Ollama, the API, and the web app. Gemini and Pinecone remain hosted services, so their credentials and the existing Pinecone index are still required for RAG answers.
+
+Start the stack from the repository root:
+
+```bash
+docker compose up --build -d
+```
+
+On the first run, Docker builds the API and web images and downloads the Ollama image plus `nomic-embed-text`; this can take several minutes and requires disk space. The API waits for MongoDB health and the Ollama model download. The web app waits for the API health check. Open [http://localhost:3000](http://localhost:3000) after the services report healthy:
+
+```bash
+docker compose ps
+docker compose logs -f
+```
+
+The Compose API overrides `MONGO_URI` to use the MongoDB container and `OLLAMA_BASE_URL` to use the Ollama container. MongoDB stores data in the `mongodb-data` named volume; Ollama models are stored in `ollama-data`. Both survive normal stop/down operations.
+
+Stop the app and services:
+
+```bash
+docker compose down
+```
+
+This stops/removes containers and the default network while keeping the MongoDB data and Ollama model volumes. To also delete those volumes and permanently erase the local database/model cache, use `docker compose down --volumes` only when you intentionally want a clean reset.
+
+The Compose stack is for local development, binds published ports to `127.0.0.1`, and does not configure MongoDB authentication. Do not expose these development containers to an untrusted network. Source changes require rebuilding the affected image with `docker compose up --build -d`.
 
 ## Common setup problems
 
